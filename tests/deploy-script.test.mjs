@@ -15,7 +15,8 @@ test("Windows deploy script includes the full production deployment flow", () =>
     "npm ci",
     "npx prisma migrate deploy",
     "npm install -g pm2",
-    "pm2 start npm",
+    "ecosystem.config.cjs",
+    "pm2 start ecosystem.config.cjs",
     "pm2 restart",
     "pm2 save",
     "pm2-startup install",
@@ -31,4 +32,14 @@ test("README documents the production one-command deployment script", () => {
   assert.match(readme, /DATABASE_URL/);
   assert.match(readme, /AUTH_SECRET/);
   assert.match(readme, /PM2/);
+});
+
+test("PM2 ecosystem config runs Next.js with explicit args on Windows", () => {
+  const config = readFileSync("ecosystem.config.cjs", "utf8");
+
+  assert.match(config, /name:\s*"kabuda"/);
+  assert.match(config, /script:\s*"node_modules\/next\/dist\/bin\/next"/);
+  assert.match(config, /args:\s*"start"/);
+  assert.match(config, /NODE_ENV:\s*"production"/);
+  assert.match(config, /PORT:\s*process\.env\.PORT \|\| "3000"/);
 });

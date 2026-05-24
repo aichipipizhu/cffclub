@@ -200,7 +200,7 @@ $process = Get-Pm2Process -Name $AppName
 if ($process) {
   & pm2 restart $AppName --update-env
 } else {
-  & pm2 start npm --name $AppName -- run start
+  & pm2 start ecosystem.config.cjs --only $AppName
 }
 & pm2 save
 
