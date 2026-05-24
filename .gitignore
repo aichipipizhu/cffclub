@@ -1,0 +1,15 @@
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+.env*
+!.env.example
+*.log
+dev-server*.log
+curl-cookies.txt
+output/
+prisma/migrations/dev.db
+*.db
+*.sqlite
+*.sqlite3

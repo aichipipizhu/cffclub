@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PLAYER
+}
+
+enum CustomerStatus {
+  PENDING
+  CONFIRMED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+}
+
+enum ItemStatus {
+  STARTED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PayrollStatus {
+  UNPAID
+  PAID
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  displayName  String
+  passwordHash String
+  role         Role     @default(PLAYER)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedCustomers   Customer[]        @relation("CustomerOwner")
+  reportedOrders   Order[]           @relation("OrderReporter")
+  orderItems       OrderItem[]       @relation("ItemPlayer")
+  reviewedItems    OrderItem[]       @relation("ItemReviewer")
+  pricingOverrides PlayerPricingOverride[]
+  ownerCommissions OwnerCommission[] @relation("OwnerCommissionOwner")
+  auditLogs        AuditLog[]
+}
+
+model Customer {
+  id        String         @id @default(cuid())
+  name      String
+  wechat    String?
+  note      String?
+  status    CustomerStatus @default(PENDING)
+  ownerId   String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  owner   User?           @relation("CustomerOwner", fields: [ownerId], references: [id])
+  aliases CustomerAlias[]
+  orders  Order[]
+
+  @@index([name])
+  @@index([ownerId])
+}
+
+model CustomerAlias {
+  id         String   @id @default(cuid())
+  customerId String
+  alias      String
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, alias])
+  @@index([alias])
+}
+
+model Category {
+  id                         String   @id @default(cuid())
+  name                       String   @unique
+  unitPriceCents             Int
+  platformCommissionRateBps  Int
+  active                     Boolean  @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  orders           Order[]
+  pricingOverrides PlayerPricingOverride[]
+}
+
+model PlayerPricingOverride {
+  id                         String   @id @default(cuid())
+  playerId                   String
+  categoryId                 String
+  unitPriceCents             Int?
+  platformCommissionRateBps  Int?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  player   User     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, categoryId])
+}
+
+model Order {
+  id            String        @id @default(cuid())
+  code          String        @unique
+  customerId    String
+  categoryId    String
+  reportedById  String
+  paymentStatus PaymentStatus @default(UNPAID)
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  category   Category    @relation(fields: [categoryId], references: [id])
+  reportedBy User        @relation("OrderReporter", fields: [reportedById], references: [id])
+  items      OrderItem[]
+
+  @@index([customerId])
+  @@index([categoryId])
+  @@index([paymentStatus])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id                         String        @id @default(cuid())
+  orderId                    String
+  playerId                   String
+  gameId                     String?
+  startAt                    DateTime
+  endAt                      DateTime?
+  billableMinutes            Int           @default(0)
+  unitPriceCents             Int           @default(0)
+  grossAmountCents           Int           @default(0)
+  platformCommissionRateBps  Int           @default(0)
+  platformCommissionCents    Int           @default(0)
+  playerPayoutCents          Int           @default(0)
+  ownerCommissionRateBps     Int           @default(0)
+  ownerCommissionCents       Int           @default(0)
+  status                     ItemStatus    @default(STARTED)
+  payrollStatus              PayrollStatus @default(UNPAID)
+  payrollPaidAt              DateTime?
+  note                       String?
+  rejectedReason             String?
+  reviewedById               String?
+  reviewedAt                 DateTime?
+  submittedAt                DateTime?
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
+
+  order            Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  player           User             @relation("ItemPlayer", fields: [playerId], references: [id])
+  reviewedBy       User?            @relation("ItemReviewer", fields: [reviewedById], references: [id])
+  ownerCommission  OwnerCommission?
+
+  @@index([playerId])
+  @@index([status])
+  @@index([payrollStatus])
+  @@index([startAt])
+}
+
+model OwnerCommission {
+  id          String   @id @default(cuid())
+  orderItemId String   @unique
+  ownerId     String
+  amountCents Int
+  rateBps     Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  owner     User      @relation("OwnerCommissionOwner", fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
