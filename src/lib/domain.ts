@@ -29,6 +29,18 @@ export type PricingResult = {
   ownerCommissionCents: number;
 };
 
+export type PreviewOrderItemPricingInput = {
+  startAt: string;
+  endAt: string;
+  unitPriceCents: number;
+  platformCommissionRateBps: number;
+  ownerCommissionRateBps: number;
+};
+
+export type PreviewOrderItemPricingResult =
+  | { ok: true; pricing: PricingResult }
+  | { ok: false; message: string };
+
 export type SummaryItem = {
   status: ItemStatus;
   paymentStatus: PaymentStatus;
@@ -107,6 +119,35 @@ export function calculateOrderItemPricing(input: PricingInput): PricingResult {
     platformCommissionCents,
     playerPayoutCents,
     ownerCommissionCents,
+  };
+}
+
+export function previewOrderItemPricing(
+  input: PreviewOrderItemPricingInput,
+): PreviewOrderItemPricingResult {
+  if (!input.endAt) {
+    return { ok: false, message: "请先填写结束时间" };
+  }
+
+  const startAt = new Date(input.startAt);
+  const endAt = new Date(input.endAt);
+  if (!Number.isFinite(startAt.getTime()) || !Number.isFinite(endAt.getTime())) {
+    return { ok: false, message: "时间格式不正确" };
+  }
+
+  if (endAt.getTime() <= startAt.getTime()) {
+    return { ok: false, message: "结束时间必须晚于开始时间" };
+  }
+
+  return {
+    ok: true,
+    pricing: calculateOrderItemPricing({
+      startAt,
+      endAt,
+      unitPriceCents: input.unitPriceCents,
+      platformCommissionRateBps: input.platformCommissionRateBps,
+      ownerCommissionRateBps: input.ownerCommissionRateBps,
+    }),
   };
 }
 

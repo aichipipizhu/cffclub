@@ -1,9 +1,14 @@
 "use client";
 
-import { Clipboard, LogOut, Play, RefreshCw, Save, Send, SquarePlus } from "lucide-react";
+import { Calculator, Clipboard, LogOut, Play, RefreshCw, Send, SquarePlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { billableHoursLabel, centsToYuan, displayOrderCode } from "@/lib/domain";
+import {
+  billableHoursLabel,
+  centsToYuan,
+  displayOrderCode,
+  previewOrderItemPricing,
+} from "@/lib/domain";
 
 type User = {
   id: string;
@@ -35,8 +40,10 @@ type OrderItem = {
   billableMinutes: number;
   unitPriceCents: number;
   grossAmountCents: number;
+  platformCommissionRateBps: number;
   platformCommissionCents: number;
   playerPayoutCents: number;
+  ownerCommissionRateBps: number;
   rejectedReason?: string | null;
   order: {
     code: string;
@@ -96,8 +103,32 @@ function ItemCard({
   const [gameId, setGameId] = useState(item.gameId || "");
   const [note, setNote] = useState(item.note || "");
   const [busy, setBusy] = useState(false);
+  const [previewPricing, setPreviewPricing] = useState<{
+    billableMinutes: number;
+    grossAmountCents: number;
+    playerPayoutCents: number;
+  } | null>(null);
 
-  async function patchItem(submit: boolean, endAtOverride?: string) {
+  const shownBillableMinutes = previewPricing?.billableMinutes ?? item.billableMinutes;
+  const shownGrossAmountCents = previewPricing?.grossAmountCents ?? item.grossAmountCents;
+  const shownPlayerPayoutCents = previewPricing?.playerPayoutCents ?? item.playerPayoutCents;
+  const shownBillableHoursLabel = previewPricing
+    ? billableHoursLabel(shownBillableMinutes)
+    : shownBillableMinutes
+      ? billableHoursLabel(shownBillableMinutes)
+      : "-";
+  const shownGrossAmountLabel = previewPricing
+    ? centsToYuan(shownGrossAmountCents)
+    : shownGrossAmountCents
+      ? centsToYuan(shownGrossAmountCents)
+      : "-";
+  const shownPlayerPayoutLabel = previewPricing
+    ? centsToYuan(shownPlayerPayoutCents)
+    : shownPlayerPayoutCents
+      ? centsToYuan(shownPlayerPayoutCents)
+      : "-";
+
+  async function submitItem(endAtOverride?: string) {
     setBusy(true);
     try {
       await requestJson(`/api/mobile/items/${item.id}`, {
@@ -108,14 +139,33 @@ function ItemCard({
           endAt: fromInputDateTime(endAtOverride ?? endAt),
           gameId,
           note,
-          submit,
+          submit: true,
         }),
       });
-      setToast(submit ? "已提交审核" : "已保存");
+      setToast("已提交审核");
+      setPreviewPricing(null);
       await onChanged();
     } finally {
       setBusy(false);
     }
+  }
+
+  function handlePreview() {
+    const result = previewOrderItemPricing({
+      startAt,
+      endAt,
+      unitPriceCents: item.unitPriceCents,
+      platformCommissionRateBps: item.platformCommissionRateBps,
+      ownerCommissionRateBps: item.ownerCommissionRateBps,
+    });
+
+    if (!result.ok) {
+      setToast(result.message);
+      return;
+    }
+
+    setPreviewPricing(result.pricing);
+    setToast("已生成预览");
   }
 
   return (
@@ -135,11 +185,29 @@ function ItemCard({
       <div className="grid two">
         <div className="field">
           <label>开始时间</label>
-          <input className="input" type="datetime-local" value={startAt} disabled={locked} onChange={(event) => setStartAt(event.target.value)} />
+          <input
+            className="input"
+            type="datetime-local"
+            value={startAt}
+            disabled={locked}
+            onChange={(event) => {
+              setStartAt(event.target.value);
+              setPreviewPricing(null);
+            }}
+          />
         </div>
         <div className="field">
           <label>结束时间</label>
-          <input className="input" type="datetime-local" value={endAt} disabled={locked} onChange={(event) => setEndAt(event.target.value)} />
+          <input
+            className="input"
+            type="datetime-local"
+            value={endAt}
+            disabled={locked}
+            onChange={(event) => {
+              setEndAt(event.target.value);
+              setPreviewPricing(null);
+            }}
+          />
         </div>
       </div>
 
@@ -157,22 +225,22 @@ function ItemCard({
       <div className="grid three">
         <div className="stat">
           <span>时长</span>
-          <strong>{item.billableMinutes ? billableHoursLabel(item.billableMinutes) : "-"}</strong>
+          <strong>{shownBillableHoursLabel}</strong>
         </div>
         <div className="stat">
           <span>总价</span>
-          <strong>{item.grossAmountCents ? centsToYuan(item.grossAmountCents) : "-"}</strong>
+          <strong>{shownGrossAmountLabel}</strong>
         </div>
         <div className="stat">
           <span>酬劳</span>
-          <strong>{item.playerPayoutCents ? centsToYuan(item.playerPayoutCents) : "-"}</strong>
+          <strong>{shownPlayerPayoutLabel}</strong>
         </div>
       </div>
 
       <div className="toolbar">
-        <button className="button secondary" disabled={busy || locked} onClick={() => patchItem(false)}>
-          <Save size={16} />
-          保存
+        <button className="button secondary" disabled={busy || locked} onClick={handlePreview}>
+          <Calculator size={16} />
+          预览
         </button>
         <button
           className="button blue"
@@ -182,7 +250,7 @@ function ItemCard({
             if (!endAt) {
               setEndAt(effectiveEndAt);
             }
-            await patchItem(true, effectiveEndAt);
+            await submitItem(effectiveEndAt);
           }}
         >
           <Send size={16} />
