@@ -36,7 +36,6 @@ type Customer = {
 type Category = {
   id: string;
   name: string;
-  unitPriceCents: number;
   platformCommissionRateBps: number;
   active: boolean;
 };
@@ -557,7 +556,6 @@ export default function AdminPage() {
                 const data = new FormData(event.currentTarget);
                 void postForm(event, "/api/admin/categories", {
                   name: String(data.get("name") || ""),
-                  unitPriceYuan: Number(data.get("unitPriceYuan") || 0),
                   platformCommissionPercent: Number(data.get("platformCommissionPercent") || 0),
                   active: true,
                 });
@@ -568,7 +566,6 @@ export default function AdminPage() {
                 <Settings size={18} />
               </div>
               <input className="input" name="name" placeholder="品类名称" />
-              <input className="input" type="number" name="unitPriceYuan" placeholder="默认单价/小时" />
               <input className="input" type="number" name="platformCommissionPercent" placeholder="平台抽成%" />
               <button className="button">保存品类</button>
             </form>
@@ -614,7 +611,6 @@ export default function AdminPage() {
                 void postForm(event, "/api/admin/overrides", {
                   playerId: data.get("playerId"),
                   categoryId: data.get("categoryId"),
-                  unitPriceYuan: data.get("unitPriceYuan") ? Number(data.get("unitPriceYuan")) : null,
                   platformCommissionPercent: data.get("platformCommissionPercent")
                     ? Number(data.get("platformCommissionPercent"))
                     : null,
@@ -638,7 +634,6 @@ export default function AdminPage() {
                   </option>
                 ))}
               </select>
-              <input className="input" type="number" name="unitPriceYuan" placeholder="覆盖单价，可留空" />
               <input className="input" type="number" name="platformCommissionPercent" placeholder="覆盖抽成%，可留空" />
               <button className="button">保存覆盖</button>
             </form>

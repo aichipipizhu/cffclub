@@ -26,7 +26,6 @@ type Customer = {
 type Category = {
   id: string;
   name: string;
-  unitPriceCents: number;
   platformCommissionRateBps: number;
 };
 
@@ -281,7 +280,9 @@ export default function MobilePage() {
   const [customerId, setCustomerId] = useState("");
   const [newCustomerName, setNewCustomerName] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [unitPrice, setUnitPrice] = useState("");
   const [joinCode, setJoinCode] = useState("");
+  const [joinUnitPrice, setJoinUnitPrice] = useState("");
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
@@ -292,7 +293,7 @@ export default function MobilePage() {
   const categoryHint = useMemo(() => {
     const category = categories.find((candidate) => candidate.id === categoryId);
     if (!category) return "";
-    return `默认单价 ${centsToYuan(category.unitPriceCents)} 元/小时，平台抽成 ${category.platformCommissionRateBps / 100}%`;
+    return `平台抽成 ${category.platformCommissionRateBps / 100}%`;
   }, [categories, categoryId]);
 
   async function load() {
@@ -333,6 +334,7 @@ export default function MobilePage() {
         customerId: customerMode === "existing" ? customerId : undefined,
         newCustomerName: customerMode === "new" ? newCustomerName : undefined,
         categoryId,
+        unitPriceYuan: Number(unitPrice),
       }),
     });
     setToast("已报备开局并生成单号");
@@ -352,10 +354,11 @@ export default function MobilePage() {
       await requestJson(`/api/mobile/orders/${encodeURIComponent(code)}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ unitPriceYuan: Number(joinUnitPrice) }),
       });
       setToast("已加入该单号");
       setJoinCode("");
+      setJoinUnitPrice("");
       await load();
     } catch (error) {
       setToast(error instanceof Error ? error.message : "加入失败");
@@ -446,7 +449,22 @@ export default function MobilePage() {
               </select>
               {categoryHint && <span className="muted">{categoryHint}</span>}
             </div>
-            <button className="button" disabled={!categoryId || (customerMode === "existing" ? !customerId : !newCustomerName)} onClick={startOrder}>
+            <div className="field">
+              <label>单价/小时</label>
+              <input
+                className="input"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={unitPrice}
+                onChange={(event) => setUnitPrice(event.target.value)}
+              />
+            </div>
+            <button
+              className="button"
+              disabled={!categoryId || Number(unitPrice) <= 0 || (customerMode === "existing" ? !customerId : !newCustomerName)}
+              onClick={startOrder}
+            >
               <SquarePlus size={17} />
               开始并生成单号
             </button>
@@ -459,7 +477,16 @@ export default function MobilePage() {
           </div>
           <div className="toolbar">
             <input className="input" placeholder="输入单号" value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
-            <button className="button blue" disabled={!joinCode.trim() || joining} onClick={joinOrder}>
+            <input
+              className="input"
+              type="number"
+              min="0.01"
+              step="0.01"
+              placeholder="单价/小时"
+              value={joinUnitPrice}
+              onChange={(event) => setJoinUnitPrice(event.target.value)}
+            />
+            <button className="button blue" disabled={!joinCode.trim() || Number(joinUnitPrice) <= 0 || joining} onClick={joinOrder}>
               {joining ? "加入中" : "加入"}
             </button>
           </div>

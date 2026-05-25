@@ -5,7 +5,7 @@ import {
   calculateOrderItemPricing,
   canPlayerEditItem,
   normalizeOrderCodeInput,
-  resolvePricingRule,
+  resolveCommissionRule,
   summarizeApprovedItems,
 } from "@/lib/domain";
 import { HttpError } from "@/lib/http";
@@ -65,7 +65,7 @@ export async function setOwnerCommissionRateBps(rateBps: number): Promise<void> 
   });
 }
 
-async function resolvePricingForPlayer(playerId: string, categoryId: string) {
+async function resolveCommissionForPlayer(playerId: string, categoryId: string) {
   const [category, override] = await Promise.all([
     prisma.category.findUniqueOrThrow({ where: { id: categoryId } }),
     prisma.playerPricingOverride.findUnique({
@@ -75,7 +75,7 @@ async function resolvePricingForPlayer(playerId: string, categoryId: string) {
 
   return {
     category,
-    rule: resolvePricingRule(category, override),
+    rule: resolveCommissionRule(category, override),
   };
 }
 
@@ -172,10 +172,11 @@ export async function startOrderForPlayer(input: {
   newCustomerWechat?: string;
   newCustomerNote?: string;
   categoryId: string;
+  unitPriceCents: number;
   startAt?: Date;
 }) {
   const customer = await resolveCustomer({ ...input, currentPlayerId: input.playerId });
-  const { rule } = await resolvePricingForPlayer(input.playerId, input.categoryId);
+  const { rule } = await resolveCommissionForPlayer(input.playerId, input.categoryId);
   const code = await createUniqueOrderCode();
 
   return prisma.order.create({
@@ -188,7 +189,7 @@ export async function startOrderForPlayer(input: {
         create: {
           playerId: input.playerId,
           startAt: input.startAt ?? new Date(),
-          unitPriceCents: rule.unitPriceCents,
+          unitPriceCents: input.unitPriceCents,
           platformCommissionRateBps: rule.platformCommissionRateBps,
           ownerCommissionRateBps: await getOwnerCommissionRateBps(),
           status: "STARTED",
@@ -203,7 +204,12 @@ export async function startOrderForPlayer(input: {
   });
 }
 
-export async function joinOrderForPlayer(input: { playerId: string; orderCode: string; startAt?: Date }) {
+export async function joinOrderForPlayer(input: {
+  playerId: string;
+  orderCode: string;
+  unitPriceCents: number;
+  startAt?: Date;
+}) {
   const orderCode = normalizeOrderCodeInput(input.orderCode);
   const order =
     (await prisma.order.findUnique({
@@ -220,14 +226,14 @@ export async function joinOrderForPlayer(input: { playerId: string; orderCode: s
     throw new HttpError(404, "单号不存在");
   }
 
-  const { rule } = await resolvePricingForPlayer(input.playerId, order.categoryId);
+  const { rule } = await resolveCommissionForPlayer(input.playerId, order.categoryId);
 
   return prisma.orderItem.create({
     data: {
       orderId: order.id,
       playerId: input.playerId,
       startAt: input.startAt ?? new Date(),
-      unitPriceCents: rule.unitPriceCents,
+      unitPriceCents: input.unitPriceCents,
       platformCommissionRateBps: rule.platformCommissionRateBps,
       ownerCommissionRateBps: await getOwnerCommissionRateBps(),
       status: "STARTED",
@@ -271,20 +277,19 @@ export async function updatePlayerOrderItem(input: {
     if (!endAt) {
       throw new HttpError(400, "结束报单需要填写结束时间");
     }
-    const { rule } = await resolvePricingForPlayer(input.playerId, item.order.categoryId);
     const ownerCommissionRateBps = await getOwnerCommissionRateBps();
     const { billableHours: _billableHours, ...pricing } = calculateOrderItemPricing({
       startAt,
       endAt,
-      unitPriceCents: rule.unitPriceCents,
-      platformCommissionRateBps: rule.platformCommissionRateBps,
+      unitPriceCents: item.unitPriceCents,
+      platformCommissionRateBps: item.platformCommissionRateBps,
       ownerCommissionRateBps,
     });
 
     Object.assign(data, {
       ...pricing,
-      unitPriceCents: rule.unitPriceCents,
-      platformCommissionRateBps: rule.platformCommissionRateBps,
+      unitPriceCents: item.unitPriceCents,
+      platformCommissionRateBps: item.platformCommissionRateBps,
       ownerCommissionRateBps,
       status: "PENDING_REVIEW",
       submittedAt: new Date(),

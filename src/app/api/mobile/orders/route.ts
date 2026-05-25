@@ -1,16 +1,6 @@
-import { z } from "zod";
-
 import { handleRouteError, ok, readJson, requireUser } from "@/lib/http";
-import { listPlayerItems, startOrderForPlayer } from "@/lib/reporting";
-
-const startSchema = z.object({
-  customerId: z.string().optional(),
-  newCustomerName: z.string().optional(),
-  newCustomerWechat: z.string().optional(),
-  newCustomerNote: z.string().optional(),
-  categoryId: z.string().min(1),
-  startAt: z.string().datetime().optional(),
-});
+import { startOrderSchema } from "@/lib/mobileOrderInput";
+import { listPlayerItems, startOrderForPlayer, yuanToCents } from "@/lib/reporting";
 
 export async function GET() {
   try {
@@ -24,10 +14,11 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const input = await readJson(request, startSchema);
+    const input = await readJson(request, startOrderSchema);
     const order = await startOrderForPlayer({
       playerId: user.id,
       ...input,
+      unitPriceCents: yuanToCents(input.unitPriceYuan),
       startAt: input.startAt ? new Date(input.startAt) : undefined,
     });
     return ok({ order });
@@ -35,4 +26,3 @@ export async function POST(request: Request) {
     return handleRouteError(error);
   }
 }
-

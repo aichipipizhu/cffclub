@@ -49,13 +49,11 @@ async function main() {
   const lol = await prisma.category.upsert({
     where: { name: "lol" },
     update: {
-      unitPriceCents: 4000,
       platformCommissionRateBps: 1000,
       active: true,
     },
     create: {
       name: "lol",
-      unitPriceCents: 4000,
       platformCommissionRateBps: 1000,
     },
   });
@@ -63,24 +61,22 @@ async function main() {
   await prisma.category.upsert({
     where: { name: "王者荣耀" },
     update: {
-      unitPriceCents: 3500,
       platformCommissionRateBps: 1000,
       active: true,
     },
     create: {
       name: "王者荣耀",
-      unitPriceCents: 3500,
       platformCommissionRateBps: 1000,
     },
   });
 
   await prisma.playerPricingOverride.upsert({
     where: { playerId_categoryId: { playerId: xinqing.id, categoryId: lol.id } },
-    update: { unitPriceCents: 4500 },
+    update: { platformCommissionRateBps: 1000 },
     create: {
       playerId: xinqing.id,
       categoryId: lol.id,
-      unitPriceCents: 4500,
+      platformCommissionRateBps: 1000,
     },
   });
 

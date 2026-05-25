@@ -86,7 +86,6 @@ model CustomerAlias {
 model Category {
   id                         String   @id @default(cuid())
   name                       String   @unique
-  unitPriceCents             Int
   platformCommissionRateBps  Int
   active                     Boolean  @default(true)
   createdAt                  DateTime @default(now())
@@ -100,7 +99,6 @@ model PlayerPricingOverride {
   id                         String   @id @default(cuid())
   playerId                   String
   categoryId                 String
-  unitPriceCents             Int?
   platformCommissionRateBps  Int?
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt

@@ -2,12 +2,11 @@ import { z } from "zod";
 
 import { handleRouteError, ok, readJson, requireAdmin } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { bpsFromPercent, yuanToCents } from "@/lib/reporting";
+import { bpsFromPercent } from "@/lib/reporting";
 
 const schema = z.object({
   playerId: z.string().min(1),
   categoryId: z.string().min(1),
-  unitPriceYuan: z.number().min(0).nullable().optional(),
   platformCommissionPercent: z.number().min(0).max(100).nullable().optional(),
 });
 
@@ -31,10 +30,6 @@ export async function POST(request: Request) {
     const override = await prisma.playerPricingOverride.upsert({
       where: { playerId_categoryId: { playerId: input.playerId, categoryId: input.categoryId } },
       update: {
-        unitPriceCents:
-          input.unitPriceYuan === undefined || input.unitPriceYuan === null
-            ? null
-            : yuanToCents(input.unitPriceYuan),
         platformCommissionRateBps:
           input.platformCommissionPercent === undefined || input.platformCommissionPercent === null
             ? null
@@ -43,10 +38,6 @@ export async function POST(request: Request) {
       create: {
         playerId: input.playerId,
         categoryId: input.categoryId,
-        unitPriceCents:
-          input.unitPriceYuan === undefined || input.unitPriceYuan === null
-            ? null
-            : yuanToCents(input.unitPriceYuan),
         platformCommissionRateBps:
           input.platformCommissionPercent === undefined || input.platformCommissionPercent === null
             ? null
@@ -59,4 +50,3 @@ export async function POST(request: Request) {
     return handleRouteError(error);
   }
 }
-

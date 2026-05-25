@@ -8,7 +8,7 @@ import {
   canPlayerEditItem,
   displayOrderCode,
   normalizeOrderCodeInput,
-  resolvePricingRule,
+  resolveCommissionRule,
   shortOrderCode,
   summarizeApprovedItems,
 } from "../src/lib/domain.ts";
@@ -41,15 +41,14 @@ test("calculates gross amount, platform commission, player payout, and owner com
   });
 });
 
-test("player-specific pricing overrides category defaults only where configured", () => {
-  const rule = resolvePricingRule(
-    { unitPriceCents: 4000, platformCommissionRateBps: 1000 },
-    { unitPriceCents: 4500 },
+test("player-specific commission overrides category commission only where configured", () => {
+  const rule = resolveCommissionRule(
+    { platformCommissionRateBps: 1000 },
+    { platformCommissionRateBps: 1200 },
   );
 
   assert.deepEqual(rule, {
-    unitPriceCents: 4500,
-    platformCommissionRateBps: 1000,
+    platformCommissionRateBps: 1200,
   });
 });
 

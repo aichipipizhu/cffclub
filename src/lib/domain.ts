@@ -3,12 +3,10 @@ export type PaymentStatus = "UNPAID" | "PAID";
 export type PayrollStatus = "UNPAID" | "PAID";
 
 export type CategoryPricingRule = {
-  unitPriceCents: number;
   platformCommissionRateBps: number;
 };
 
 export type PlayerPricingOverride = {
-  unitPriceCents?: number | null;
   platformCommissionRateBps?: number | null;
 };
 
@@ -151,12 +149,11 @@ export function previewOrderItemPricing(
   };
 }
 
-export function resolvePricingRule(
+export function resolveCommissionRule(
   category: CategoryPricingRule,
   override?: PlayerPricingOverride | null,
 ): CategoryPricingRule {
   return {
-    unitPriceCents: override?.unitPriceCents ?? category.unitPriceCents,
     platformCommissionRateBps:
       override?.platformCommissionRateBps ?? category.platformCommissionRateBps,
   };
