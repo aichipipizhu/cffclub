@@ -820,6 +820,160 @@ tbody tr:last-child td {
   flex-wrap: wrap;
 }
 
+.config-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+  gap: 16px;
+}
+
+.config-side-stack {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.config-section {
+  display: grid;
+  gap: 12px;
+}
+
+.config-title-tools {
+  width: min(480px, 100%);
+  justify-content: flex-end;
+}
+
+.config-search {
+  max-width: 260px;
+}
+
+.matrix-wrap {
+  max-height: 68vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  box-shadow: var(--shadow-soft);
+}
+
+.config-matrix {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.config-matrix th,
+.config-matrix td {
+  min-width: 130px;
+  background: var(--panel-solid);
+}
+
+.config-matrix th {
+  z-index: 2;
+}
+
+.config-matrix tbody tr:nth-child(even) td {
+  background: var(--table-stripe);
+}
+
+.config-matrix tbody tr:hover td {
+  background: var(--table-hover);
+}
+
+.matrix-player-col {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 170px;
+  box-shadow: 1px 0 0 var(--line);
+}
+
+th.matrix-player-col {
+  z-index: 4;
+}
+
+.matrix-heading {
+  display: grid;
+  gap: 4px;
+  min-width: 118px;
+}
+
+.matrix-heading small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.matrix-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.matrix-input {
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 8px;
+  outline: none;
+}
+
+.matrix-input:focus {
+  background: var(--panel-solid);
+  box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.12);
+}
+
+.dirty-cell,
+.dirty-row td {
+  box-shadow: inset 3px 0 0 var(--gemini-blue);
+}
+
+.dirty-toolbar {
+  position: sticky;
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 10px 12px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(14px);
+}
+
+.config-table-wrap table {
+  min-width: 720px;
+}
+
+.customer-config-table {
+  min-width: 1080px;
+}
+
+.config-new-row td {
+  background: rgba(234, 241, 255, 0.5);
+}
+
+.switch-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  color: var(--field-label);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .skeleton-card {
   display: grid;
   gap: 14px;
@@ -1031,6 +1185,16 @@ tbody tr:last-child td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .config-title-tools,
+  .config-search {
+    max-width: none;
+    width: 100%;
+  }
+
   .topbar .toolbar .input {
     width: 100%;
     flex: 1 1 150px;
@@ -1065,6 +1229,11 @@ tbody tr:last-child td {
   .input-with-action,
   .skeleton-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dirty-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .item-meta {

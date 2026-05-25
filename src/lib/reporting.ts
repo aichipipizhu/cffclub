@@ -671,11 +671,15 @@ async function summarizeOwnerCommissionByPlayer(range: DateRange, usersById: Map
 }
 
 export async function getAdminDashboard(range: DateRange = {}) {
-  const [rawItems, customers, users, categories, settings, totals, spendByCustomer] = await Promise.all([
+  const [rawItems, customers, users, categories, pricingOverrides, settings, totals, spendByCustomer] = await Promise.all([
     listAdminItems(range),
     prisma.customer.findMany({ include: { owner: true, aliases: true }, orderBy: { updatedAt: "desc" } }),
     prisma.user.findMany({ orderBy: [{ role: "asc" }, { displayName: "asc" }] }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.playerPricingOverride.findMany({
+      orderBy: { updatedAt: "desc" },
+      select: { playerId: true, categoryId: true, platformCommissionRateBps: true },
+    }),
     prisma.setting.findMany(),
     summarizeAdminTotals(range),
     summarizeSpendByCustomer(range),
@@ -699,6 +703,7 @@ export async function getAdminDashboard(range: DateRange = {}) {
     customers,
     users,
     categories,
+    pricingOverrides,
     settings,
     payrollByPlayer,
     spendByCustomer,

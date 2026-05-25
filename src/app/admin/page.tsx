@@ -4,7 +4,7 @@ import { Banknote, Download, LogOut, RefreshCw, TrendingUp, WalletCards } from "
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
-import { ConfigForms } from "@/app/admin/_components/ConfigForms";
+import { ConfigPanel } from "@/app/admin/config/ConfigPanel";
 import { LedgerTable } from "@/app/admin/_components/LedgerTable";
 import { ReviewControls } from "@/app/admin/_components/ReviewControls";
 import { CustomerSummary, PayrollSummary } from "@/app/admin/_components/SummaryTables";
@@ -248,7 +248,7 @@ export default function AdminPage() {
         {tab === "payroll" && <PayrollSummary dashboard={dashboard} />}
         {tab === "customers" && <CustomerSummary dashboard={dashboard} customerById={customerById} />}
 
-        {tab === "config" && <ConfigForms dashboard={dashboard} players={players} onSaved={load} toast={toast} />}
+        {tab === "config" && <ConfigPanel dashboard={dashboard} players={players} onSaved={load} toast={toast} />}
       </div>
     </main>
   );

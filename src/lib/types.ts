@@ -26,6 +26,12 @@ export type CategoryDto = {
   active?: boolean;
 };
 
+export type PricingOverrideDto = {
+  playerId: string;
+  categoryId: string;
+  platformCommissionRateBps: number | null;
+};
+
 export type OrderItemDto = {
   id: string;
   status: ItemStatus;
@@ -82,6 +88,7 @@ export type DashboardDto = {
   customers: CustomerDto[];
   users: UserDto[];
   categories: CategoryDto[];
+  pricingOverrides: PricingOverrideDto[];
   payrollByPlayer: SummaryRowDto[];
   spendByCustomer: SummaryRowDto[];
   ownerCommissionByPlayer: SummaryRowDto[];

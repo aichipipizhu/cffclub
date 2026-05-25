@@ -77,3 +77,18 @@
 已新增 `formatYuan` 展示格式，后台和移动端金额展示改为人民币符号与千分位；审核表单和微信文案仍保留 `centsToYuan` 的纯数字格式。后台 Stat 卡改为语义色、图标与副信息，流水表金额列右对齐并拆出主金额/次指标，状态切换按钮改为 outline。全局样式补充等宽数字、焦点态、选区、斑马纹、sticky 表头和暗色变量，普通 panel/card 改为实色面板。移动端报单卡片内的重型 stat 改为紧凑指标组，空状态增加图标、说明和主操作。
 
 验证结果：`npm test` 通过 30 项；`npx tsc --noEmit` 通过；`npm run build` 通过。Playwright 已在 `http://127.0.0.1:3001/login` 完成登录页加载与截图检查；后台登录因本地 `/api/auth/login` 返回 500，未能进入管理页做浏览器实机检查。
+
+## 管理后台配置 Tab 表格化重构
+
+- [x] 补充批量配置服务和 batch API。
+- [x] Dashboard 下发员工覆盖规则。
+- [x] 拆分配置页并实现覆盖抽成矩阵。
+- [x] 实现品类表格和老板档案表格。
+- [x] 补充样式和测试。
+- [x] 运行验证并记录结果。
+
+### 回顾总结
+
+已将配置 tab 改为表格化工作台：员工覆盖抽成支持矩阵编辑、整行/整列批量设置、清空覆盖和统一保存；品类规则支持新增、行内编辑和启用停用；老板档案支持搜索、新增、行内编辑、归属人指派、状态切换和别名维护。新增三个批量接口，Dashboard 下发已有覆盖规则供矩阵渲染。
+
+验证结果：`npm test` 通过 34 项；`npx tsc --noEmit` 通过；`npx next build` 通过。`npm run build` 在 `prisma generate` 阶段因 Windows Prisma query engine DLL 重命名 `EPERM` 失败，已绕过该生成步骤单独完成 Next 构建验证。Playwright 已打开 `http://127.0.0.1:3000/login`，但本地 `/api/auth/login` 返回 500，未能进入后台配置页做浏览器实机检查。
