@@ -14,8 +14,30 @@ export function fromInputDateTime(value: string): string | undefined {
 }
 
 export function statusBadge(status: ItemStatus) {
-  if (status === "APPROVED") return <span className="badge green">已入账</span>;
-  if (status === "PENDING_REVIEW") return <span className="badge amber">待审核</span>;
-  if (status === "REJECTED") return <span className="badge red">已驳回</span>;
-  return <span className="badge">进行中</span>;
+  if (status === "APPROVED") {
+    return (
+      <span className="badge green">
+        <span className="badge-dot" /> 已入账
+      </span>
+    );
+  }
+  if (status === "PENDING_REVIEW") {
+    return (
+      <span className="badge amber">
+        <span className="badge-dot" /> 待审核
+      </span>
+    );
+  }
+  if (status === "REJECTED") {
+    return (
+      <span className="badge red">
+        <span className="badge-dot" /> 已驳回
+      </span>
+    );
+  }
+  return (
+    <span className="badge">
+      <span className="badge-dot" /> 进行中
+    </span>
+  );
 }

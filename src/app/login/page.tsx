@@ -5,6 +5,9 @@ import { useState } from "react";
 
 type AuthUser = { role: "ADMIN" | "PLAYER" };
 
+const devUsername = process.env.NODE_ENV === "development" ? "admin" : "";
+const devPassword = process.env.NODE_ENV === "development" ? "admin123" : "";
+
 async function login(username: string, password: string) {
   const response = await fetch("/api/auth/login", {
     method: "POST",
@@ -33,8 +36,8 @@ async function register(username: string, displayName: string, password: string)
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin123");
+  const [username, setUsername] = useState(devUsername);
+  const [password, setPassword] = useState(devPassword);
   const [displayName, setDisplayName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -63,7 +66,11 @@ export default function LoginPage() {
             <p className="muted">{isRegister ? "注册陪玩账号" : "账号密码登录"}</p>
           </div>
         </div>
-        {error && <div className="toast">{error}</div>}
+        {error && (
+          <div className="toast toast-error" role="alert">
+            {error}
+          </div>
+        )}
         <form
           className="form"
           onSubmit={async (event) => {
@@ -133,8 +140,8 @@ export default function LoginPage() {
             onClick={() => {
               setMode(isRegister ? "login" : "register");
               setError("");
-              setUsername(isRegister ? "admin" : "");
-              setPassword(isRegister ? "admin123" : "");
+              setUsername(isRegister ? devUsername : "");
+              setPassword(isRegister ? devPassword : "");
               setDisplayName("");
               setConfirmPassword("");
             }}

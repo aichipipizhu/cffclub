@@ -1,309 +1,91 @@
 "use client";
 
-import { Calculator, Clipboard, LogOut, Play, RefreshCw, Send, SquarePlus } from "lucide-react";
+import { LogOut, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { fromInputDateTime, statusBadge, toInputDateTime } from "@/lib/clientFormat";
+import { ToastViewport, useToast } from "@/app/_components/feedback";
+import { MobileSkeleton } from "@/app/_components/loading";
+import { ItemCard } from "@/app/mobile/_components/ItemCard";
+import { OrderEntryPanels } from "@/app/mobile/_components/OrderEntryPanels";
+import { upsertItem } from "@/app/mobile/_components/itemState";
 import { requestJson } from "@/lib/clientHttp";
-import {
-  billableHoursLabel,
-  centsToYuan,
-  displayOrderCode,
-  previewOrderItemPricing,
-} from "@/lib/domain";
 import type { MobileBootstrapDto, OrderItemDto, UserDto } from "@/lib/types";
 
-function ItemCard({
-  item,
-  onChanged,
-  setToast,
-}: {
-  item: OrderItemDto;
-  onChanged: () => Promise<void>;
-  setToast: (message: string) => void;
-}) {
-  const locked = item.status === "APPROVED";
-  const [startAt, setStartAt] = useState(toInputDateTime(item.startAt));
-  const [endAt, setEndAt] = useState(toInputDateTime(item.endAt));
-  const [gameId, setGameId] = useState(item.gameId || "");
-  const [note, setNote] = useState(item.note || "");
-  const [busy, setBusy] = useState(false);
-  const [previewPricing, setPreviewPricing] = useState<{
-    billableMinutes: number;
-    grossAmountCents: number;
-    playerPayoutCents: number;
-  } | null>(null);
+type ItemFilter = "ALL" | "STARTED" | "PENDING_REVIEW" | "REJECTED" | "APPROVED";
 
-  const shownBillableMinutes = previewPricing?.billableMinutes ?? item.billableMinutes;
-  const shownGrossAmountCents = previewPricing?.grossAmountCents ?? item.grossAmountCents;
-  const shownPlayerPayoutCents = previewPricing?.playerPayoutCents ?? item.playerPayoutCents;
-  const shownBillableHoursLabel = shownBillableMinutes ? billableHoursLabel(shownBillableMinutes) : "-";
-  const shownGrossAmountLabel = shownGrossAmountCents ? centsToYuan(shownGrossAmountCents) : "-";
-  const shownPlayerPayoutLabel = shownPlayerPayoutCents ? centsToYuan(shownPlayerPayoutCents) : "-";
-
-  async function submitItem(endAtOverride?: string) {
-    setBusy(true);
-    try {
-      await requestJson(`/api/mobile/items/${item.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startAt: fromInputDateTime(startAt),
-          endAt: fromInputDateTime(endAtOverride ?? endAt),
-          gameId,
-          note,
-          submit: true,
-        }),
-      });
-      setToast("已提交审核");
-      setPreviewPricing(null);
-      await onChanged();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handlePreview() {
-    const result = previewOrderItemPricing({
-      startAt,
-      endAt,
-      unitPriceCents: item.unitPriceCents,
-      platformCommissionRateBps: item.platformCommissionRateBps,
-      ownerCommissionRateBps: item.ownerCommissionRateBps,
-    });
-
-    if (!result.ok) {
-      setToast(result.message);
-      return;
-    }
-
-    setPreviewPricing(result.pricing);
-    setToast("已生成预览");
-  }
-
-  return (
-    <article className="card item-card">
-      <div className="item-meta">
-        <div>
-          <strong>#{displayOrderCode(item.order.code)}</strong>
-          <div className="muted">
-            {item.order.customer.name} / {item.order.category.name}
-          </div>
-        </div>
-        {statusBadge(item.status)}
-      </div>
-
-      {item.rejectedReason && <div className="badge red">驳回：{item.rejectedReason}</div>}
-
-      <div className="grid two">
-        <div className="field">
-          <label>开始时间</label>
-          <input
-            className="input"
-            type="datetime-local"
-            value={startAt}
-            disabled={locked}
-            onChange={(event) => {
-              setStartAt(event.target.value);
-              setPreviewPricing(null);
-            }}
-          />
-        </div>
-        <div className="field">
-          <label>结束时间</label>
-          <input
-            className="input"
-            type="datetime-local"
-            value={endAt}
-            disabled={locked}
-            onChange={(event) => {
-              setEndAt(event.target.value);
-              setPreviewPricing(null);
-            }}
-          />
-        </div>
-      </div>
-
-      <div className="grid two">
-        <div className="field">
-          <label>游戏 ID</label>
-          <input className="input" value={gameId} disabled={locked} onChange={(event) => setGameId(event.target.value)} />
-        </div>
-        <div className="field">
-          <label>备注</label>
-          <input className="input" value={note} disabled={locked} onChange={(event) => setNote(event.target.value)} />
-        </div>
-      </div>
-
-      <div className="grid three">
-        <div className="stat">
-          <span>时长</span>
-          <strong>{shownBillableHoursLabel}</strong>
-        </div>
-        <div className="stat">
-          <span>总价</span>
-          <strong>{shownGrossAmountLabel}</strong>
-        </div>
-        <div className="stat">
-          <span>酬劳</span>
-          <strong>{shownPlayerPayoutLabel}</strong>
-        </div>
-      </div>
-
-      <div className="toolbar">
-        <button className="button secondary" disabled={busy || locked} onClick={handlePreview}>
-          <Calculator size={16} />
-          预览
-        </button>
-        <button
-          className="button blue"
-          disabled={busy || locked}
-          onClick={async () => {
-            const effectiveEndAt = endAt || toInputDateTime(new Date());
-            if (!endAt) {
-              setEndAt(effectiveEndAt);
-            }
-            await submitItem(effectiveEndAt);
-          }}
-        >
-          <Send size={16} />
-          提交
-        </button>
-        <button
-          className="button amber"
-          disabled={!item.endAt}
-          onClick={async () => {
-            const payload = await requestJson<{ text: string }>(`/api/mobile/items/${item.id}/copy`);
-            await navigator.clipboard.writeText(payload.text);
-            setToast("微信群文案已复制");
-          }}
-        >
-          <Clipboard size={16} />
-          复制
-        </button>
-      </div>
-    </article>
-  );
-}
+const itemFilters: Array<[ItemFilter, string]> = [
+  ["ALL", "全部"],
+  ["STARTED", "进行中"],
+  ["PENDING_REVIEW", "待审核"],
+  ["REJECTED", "已驳回"],
+  ["APPROVED", "已入账"],
+];
 
 export default function MobilePage() {
   const [user, setUser] = useState<UserDto | null>(null);
   const [bootstrap, setBootstrap] = useState<MobileBootstrapDto | null>(null);
   const [items, setItems] = useState<OrderItemDto[]>([]);
-  const [customerMode, setCustomerMode] = useState("existing");
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [customerId, setCustomerId] = useState("");
-  const [newCustomerName, setNewCustomerName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [unitPrice, setUnitPrice] = useState("");
-  const [joinCode, setJoinCode] = useState("");
-  const [joinUnitPrice, setJoinUnitPrice] = useState("");
-  const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
-  const [joining, setJoining] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [itemFilter, setItemFilter] = useState<ItemFilter>("ALL");
+  const toast = useToast();
 
   const customers = bootstrap?.customers ?? [];
   const categories = bootstrap?.categories ?? [];
 
-  const categoryHint = useMemo(() => {
-    const category = categories.find((candidate) => candidate.id === categoryId);
-    if (!category) return "";
-    return `平台抽成 ${category.platformCommissionRateBps / 100}%`;
-  }, [categories, categoryId]);
+  const filteredItems = useMemo(() => {
+    if (itemFilter === "ALL") return items;
+    return items.filter((item) => item.status === itemFilter);
+  }, [itemFilter, items]);
 
-  async function load() {
-    const me = await requestJson<{ user: UserDto | null }>("/api/auth/me");
-    if (!me.user) {
-      window.location.href = "/login";
-      return;
-    }
-    if (me.user.role === "ADMIN") {
-      window.location.href = "/admin";
-      return;
-    }
-    setUser(me.user);
+  async function load(options: { silent?: boolean } = {}) {
+    if (!options.silent) setRefreshing(true);
+    try {
+      const me = await requestJson<{ user: UserDto | null }>("/api/auth/me");
+      if (!me.user) {
+        window.location.href = "/login";
+        return;
+      }
+      if (me.user.role === "ADMIN") {
+        window.location.href = "/admin";
+        return;
+      }
+      setUser(me.user);
 
-    const [boot, list] = await Promise.all([
-      requestJson<MobileBootstrapDto>("/api/mobile/bootstrap"),
-      requestJson<{ items: OrderItemDto[] }>("/api/mobile/orders"),
-    ]);
-    setBootstrap(boot);
-    setItems(list.items);
-    setCustomerId(boot.customers[0]?.id || "");
-    setCategoryId(boot.categories[0]?.id || "");
-    setLoading(false);
+      const [boot, list] = await Promise.all([
+        requestJson<MobileBootstrapDto>("/api/mobile/bootstrap"),
+        requestJson<{ items: OrderItemDto[] }>("/api/mobile/orders"),
+      ]);
+      setBootstrap(boot);
+      setItems(list.items);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }
 
   useEffect(() => {
-    void load().catch((error) => {
-      setToast(error instanceof Error ? error.message : "加载失败");
+    void load({ silent: true }).catch((error) => {
+      toast.error(error instanceof Error ? error.message : "加载失败");
       setLoading(false);
     });
   }, []);
 
-  useEffect(() => {
-    if (loading) return;
-    const timeout = window.setTimeout(() => {
-      void requestJson<{ customers: MobileBootstrapDto["customers"] }>(
-        `/api/mobile/customers?query=${encodeURIComponent(customerSearch)}`,
-      )
-        .then((payload) => {
-          setBootstrap((current) => (current ? { ...current, customers: payload.customers } : current));
-          setCustomerId((current) => {
-            if (payload.customers.some((customer) => customer.id === current)) return current;
-            return payload.customers[0]?.id || "";
-          });
-        })
-        .catch((error) => {
-          setToast(error instanceof Error ? error.message : "老板搜索失败");
-        });
-    }, 250);
-    return () => window.clearTimeout(timeout);
-  }, [customerSearch, loading]);
-
-  async function startOrder() {
-    await requestJson("/api/mobile/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customerId: customerMode === "existing" ? customerId : undefined,
-        newCustomerName: customerMode === "new" ? newCustomerName : undefined,
-        categoryId,
-        unitPriceYuan: Number(unitPrice),
-      }),
-    });
-    setToast("已报备开局并生成单号");
-    setNewCustomerName("");
-    await load();
-  }
-
-  async function joinOrder() {
-    const code = joinCode.replace(/\D/g, "");
-    if (!code) {
-      setToast("请输入单号");
-      return;
-    }
-
-    setJoining(true);
+  async function logout() {
+    if (!window.confirm("确认退出登录？")) return;
+    setLoggingOut(true);
     try {
-      await requestJson(`/api/mobile/orders/${encodeURIComponent(code)}/join`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ unitPriceYuan: Number(joinUnitPrice) }),
-      });
-      setToast("已加入该单号");
-      setJoinCode("");
-      setJoinUnitPrice("");
-      await load();
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login";
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "加入失败");
-    } finally {
-      setJoining(false);
+      toast.error(error instanceof Error ? error.message : "退出失败");
+      setLoggingOut(false);
     }
   }
 
   if (loading) {
-    return <main className="page mobile-page">加载中...</main>;
+    return <MobileSkeleton />;
   }
 
   return (
@@ -314,19 +96,13 @@ export default function MobilePage() {
           <span>{user?.displayName}</span>
         </div>
         <div className="toolbar">
-          <button className="button secondary" onClick={() => void load()}>
+          <button className="button secondary" type="button" disabled={refreshing} onClick={() => void load()}>
             <RefreshCw size={16} />
-            刷新
+            {refreshing ? "刷新中" : "刷新"}
           </button>
-          <button
-            className="button secondary"
-            onClick={async () => {
-              await fetch("/api/auth/logout", { method: "POST" });
-              window.location.href = "/login";
-            }}
-          >
+          <button className="button secondary" type="button" disabled={loggingOut} onClick={() => void logout()}>
             <LogOut size={16} />
-            退出
+            {loggingOut ? "退出中" : "退出"}
           </button>
         </div>
       </header>
@@ -341,108 +117,28 @@ export default function MobilePage() {
             <span>{categories.length} 个品类</span>
           </div>
         </section>
-        {toast && <div className="toast">{toast}</div>}
+        <ToastViewport toast={toast} />
 
-        <section className="panel">
-          <div className="section-title">
-            <h2>开局报备</h2>
-            <Play size={20} />
-          </div>
-          <div className="form">
-            <div className="field">
-              <label>老板</label>
-              <select className="select" value={customerMode} onChange={(event) => setCustomerMode(event.target.value)}>
-                <option value="existing">选择已有老板</option>
-                <option value="new">新增老板待确认</option>
-              </select>
-            </div>
-            {customerMode === "existing" ? (
-              <div className="field">
-                <label>老板档案</label>
-                <input
-                  className="input"
-                  placeholder="搜索老板、微信或别名"
-                  value={customerSearch}
-                  onChange={(event) => setCustomerSearch(event.target.value)}
-                />
-                <select className="select" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name} {customer.status === "PENDING" ? "（待确认）" : ""}
-                    </option>
-                  ))}
-                </select>
-                {customers.length === 0 && <span className="muted">没有匹配的老板档案</span>}
-              </div>
-            ) : (
-              <div className="field">
-                <label>新老板名称</label>
-                <input className="input" value={newCustomerName} onChange={(event) => setNewCustomerName(event.target.value)} />
-              </div>
-            )}
-            <div className="field">
-              <label>品类</label>
-              <select className="select" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              {categoryHint && <span className="muted">{categoryHint}</span>}
-            </div>
-            <div className="field">
-              <label>单价/小时</label>
-              <input
-                className="input"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={unitPrice}
-                onChange={(event) => setUnitPrice(event.target.value)}
-              />
-            </div>
-            <button
-              className="button"
-              disabled={!categoryId || Number(unitPrice) <= 0 || (customerMode === "existing" ? !customerId : !newCustomerName)}
-              onClick={startOrder}
-            >
-              <SquarePlus size={17} />
-              开始并生成单号
-            </button>
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="section-title">
-            <h2>加入已有单号</h2>
-          </div>
-          <div className="toolbar">
-            <input className="input" placeholder="输入单号" value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
-            <input
-              className="input"
-              type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="单价/小时"
-              value={joinUnitPrice}
-              onChange={(event) => setJoinUnitPrice(event.target.value)}
-            />
-            <button className="button blue" disabled={!joinCode.trim() || Number(joinUnitPrice) <= 0 || joining} onClick={joinOrder}>
-              {joining ? "加入中" : "加入"}
-            </button>
-          </div>
-        </section>
+        {bootstrap && <OrderEntryPanels bootstrap={bootstrap} setBootstrap={setBootstrap} setItems={setItems} toast={toast} />}
 
         <section className="grid">
           <div className="section-title">
             <h2>我的报单</h2>
-            <span className="muted">{items.length} 条</span>
+            <span className="muted">{filteredItems.length} 条</span>
           </div>
-          {items.length === 0 ? (
+          <nav className="tabs compact-tabs" aria-label="报单状态筛选">
+            {itemFilters.map(([value, label]) => (
+              <button key={value} className={`tab ${itemFilter === value ? "active" : ""}`} type="button" onClick={() => setItemFilter(value)}>
+                {label}
+              </button>
+            ))}
+          </nav>
+          {filteredItems.length === 0 ? (
             <div className="empty">暂无报单</div>
           ) : (
-            items.map((item) => <ItemCard key={item.id} item={item} onChanged={load} setToast={setToast} />)
+            filteredItems.map((item) => (
+              <ItemCard key={item.id} item={item} onChanged={(updated) => setItems((current) => upsertItem(current, updated))} toast={toast} />
+            ))
           )}
         </section>
       </div>

@@ -1,35 +1,17 @@
 "use client";
 
-import {
-  CheckCircle,
-  Download,
-  LogOut,
-  RefreshCw,
-  Settings,
-  ShieldCheck,
-  UserPlus,
-  XCircle,
-} from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Download, LogOut, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
-import { fromInputDateTime, statusBadge, toInputDateTime } from "@/lib/clientFormat";
+import { ConfigForms } from "@/app/admin/_components/ConfigForms";
+import { LedgerTable } from "@/app/admin/_components/LedgerTable";
+import { ReviewControls } from "@/app/admin/_components/ReviewControls";
+import { CustomerSummary, PayrollSummary } from "@/app/admin/_components/SummaryTables";
+import { ToastViewport, useToast } from "@/app/_components/feedback";
+import { AdminSkeleton } from "@/app/_components/loading";
 import { requestJson } from "@/lib/clientHttp";
-import { billableHoursLabel, centsToYuan, displayOrderCode } from "@/lib/domain";
-import type { DashboardDto, OrderItemDto, UserDto } from "@/lib/types";
-
-function percent(value: number): string {
-  return String(value / 100);
-}
-
-function formatDateTime(value?: string | null): string {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
+import { centsToYuan } from "@/lib/domain";
+import type { DashboardDto, UserDto } from "@/lib/types";
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -40,99 +22,42 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function ReviewControls({
-  item,
-  onDone,
-  setToast,
-}: {
-  item: OrderItemDto;
-  onDone: () => Promise<void>;
-  setToast: (message: string) => void;
-}) {
-  const [unitPrice, setUnitPrice] = useState(centsToYuan(item.unitPriceCents));
-  const [commission, setCommission] = useState(percent(item.platformCommissionRateBps));
-  const [endAt, setEndAt] = useState(toInputDateTime(item.endAt));
-  const [note, setNote] = useState(item.note || "");
-  const [reason, setReason] = useState("");
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
-  async function review(action: "APPROVE" | "REJECT") {
-    await requestJson(`/api/admin/items/${item.id}/review`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action,
-        reason,
-        endAt: fromInputDateTime(endAt),
-        unitPriceYuan: Number(unitPrice),
-        platformCommissionPercent: Number(commission),
-        note,
-      }),
-    });
-    setToast(action === "APPROVE" ? "已审核入账" : "已驳回");
-    await onDone();
-  }
-
-  return (
-    <div className="card item-card">
-      <div className="item-meta">
-        <div>
-          <strong>#{displayOrderCode(item.order.code)}</strong>
-          <div className="muted">
-            {item.order.customer.name} / {item.order.category.name} / {item.player.displayName}
-          </div>
-        </div>
-        {statusBadge(item.status)}
-      </div>
-      <div className="grid three">
-        <div className="field">
-          <label>结束时间</label>
-          <input className="input" type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
-        </div>
-        <div className="field">
-          <label>单价</label>
-          <input className="input" type="number" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} />
-        </div>
-        <div className="field">
-          <label>平台抽成%</label>
-          <input className="input" type="number" value={commission} onChange={(event) => setCommission(event.target.value)} />
-        </div>
-      </div>
-      <div className="grid two">
-        <div className="field">
-          <label>备注</label>
-          <input className="input" value={note} onChange={(event) => setNote(event.target.value)} />
-        </div>
-        <div className="field">
-          <label>驳回原因</label>
-          <input className="input" value={reason} onChange={(event) => setReason(event.target.value)} />
-        </div>
-      </div>
-      <div className="toolbar">
-        <button className="button" onClick={() => review("APPROVE")}>
-          <CheckCircle size={16} />
-          通过入账
-        </button>
-        <button className="button red" onClick={() => review("REJECT")}>
-          <XCircle size={16} />
-          驳回
-        </button>
-      </div>
-    </div>
-  );
+function filenameFromResponse(response: Response) {
+  const header = response.headers.get("content-disposition") || "";
+  const match = /filename="?([^"]+)"?/i.exec(header);
+  return match?.[1] || "kabuda-report.xlsx";
 }
 
 export default function AdminPage() {
   const [dashboard, setDashboard] = useState<DashboardDto | null>(null);
   const [tab, setTab] = useState("review");
-  const [toast, setToast] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const toast = useToast();
 
   const players = useMemo(() => dashboard?.users.filter((user) => user.role === "PLAYER") ?? [], [dashboard]);
   const pendingItems = useMemo(
     () => dashboard?.items.filter((item) => item.status === "PENDING_REVIEW" || item.status === "REJECTED") ?? [],
     [dashboard],
+  );
+  const customerById = useMemo(
+    () => new Map((dashboard?.customers ?? []).map((customer) => [customer.id, customer])),
+    [dashboard?.customers],
   );
 
   function rangeQuery() {
@@ -143,43 +68,64 @@ export default function AdminPage() {
     return query ? `?${query}` : "";
   }
 
-  async function load() {
-    const me = await requestJson<{ user: UserDto | null }>("/api/auth/me");
-    if (!me.user) {
-      window.location.href = "/login";
-      return;
+  async function load(options: { silent?: boolean } = {}) {
+    if (!options.silent) setRefreshing(true);
+    try {
+      const me = await requestJson<{ user: UserDto | null }>("/api/auth/me");
+      if (!me.user) {
+        window.location.href = "/login";
+        return;
+      }
+      if (me.user.role !== "ADMIN") {
+        window.location.href = "/mobile";
+        return;
+      }
+      const data = await requestJson<DashboardDto>(`/api/admin/dashboard${rangeQuery()}`);
+      setDashboard(data);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    if (me.user.role !== "ADMIN") {
-      window.location.href = "/mobile";
-      return;
-    }
-    const data = await requestJson<DashboardDto>(`/api/admin/dashboard${rangeQuery()}`);
-    setDashboard(data);
-    setLoading(false);
   }
 
   useEffect(() => {
-    void load().catch((error) => {
-      setToast(error instanceof Error ? error.message : "加载失败");
+    void load({ silent: true }).catch((error) => {
+      toast.error(error instanceof Error ? error.message : "加载失败");
       setLoading(false);
     });
   }, []);
 
-  async function postForm(event: FormEvent<HTMLFormElement>, url: string, body: Record<string, unknown>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    await requestJson(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    form.reset();
-    setToast("已保存配置");
-    await load();
+  async function exportDashboard() {
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/admin/export${rangeQuery()}`);
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error || "导出失败");
+      }
+      downloadBlob(await response.blob(), filenameFromResponse(response));
+      toast.success("已开始下载报表");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "导出失败");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function logout() {
+    if (!window.confirm("确认退出登录？")) return;
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login";
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "退出失败");
+      setLoggingOut(false);
+    }
   }
 
   if (loading || !dashboard) {
-    return <main className="page">加载中...</main>;
+    return <AdminSkeleton />;
   }
 
   return (
@@ -192,29 +138,23 @@ export default function AdminPage() {
         <div className="toolbar">
           <input className="input" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
           <input className="input" type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-          <button className="button secondary" onClick={() => void load()}>
+          <button className="button secondary" type="button" disabled={refreshing} onClick={() => void load()}>
             <RefreshCw size={16} />
-            查询
+            {refreshing ? "查询中" : "查询"}
           </button>
-          <button className="button amber" onClick={() => (window.location.href = `/api/admin/export${rangeQuery()}`)}>
+          <button className="button amber" type="button" disabled={exporting} onClick={() => void exportDashboard()}>
             <Download size={16} />
-            导出
+            {exporting ? "导出中" : "导出"}
           </button>
-          <button
-            className="button secondary"
-            onClick={async () => {
-              await fetch("/api/auth/logout", { method: "POST" });
-              window.location.href = "/login";
-            }}
-          >
+          <button className="button secondary" type="button" disabled={loggingOut} onClick={() => void logout()}>
             <LogOut size={16} />
-            退出
+            {loggingOut ? "退出中" : "退出"}
           </button>
         </div>
       </header>
 
       <div className="page admin-page">
-        {toast && <div className="toast">{toast}</div>}
+        <ToastViewport toast={toast} />
         <section className="stats">
           <Stat label="已审核流水" value={centsToYuan(dashboard.totals.grossAmountCents)} />
           <Stat label="未收款" value={centsToYuan(dashboard.totals.unpaidAmountCents)} />
@@ -229,7 +169,7 @@ export default function AdminPage() {
             ["customers", "老板消费"],
             ["config", "配置"],
           ].map(([value, label]) => (
-            <button key={value} className={`tab ${tab === value ? "active" : ""}`} onClick={() => setTab(value)}>
+            <button key={value} className={`tab ${tab === value ? "active" : ""}`} type="button" onClick={() => setTab(value)}>
               {label}
             </button>
           ))}
@@ -244,311 +184,23 @@ export default function AdminPage() {
             {pendingItems.length === 0 ? (
               <div className="empty">暂无待审核报单</div>
             ) : (
-              pendingItems.map((item) => <ReviewControls key={item.id} item={item} onDone={load} setToast={setToast} />)
+              pendingItems.map((item) => <ReviewControls key={item.id} item={item} onDone={load} toast={toast} />)
             )}
 
             <div className="section-title">
               <h2>流水</h2>
-              <span className="muted">{dashboard.items.length} 条</span>
+              <span className="muted">
+                {dashboard.items.length} 条{dashboard.itemPage.hasMore ? `，仅显示最近 ${dashboard.itemPage.limit} 条` : ""}
+              </span>
             </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>单号</th>
-                    <th>老板</th>
-                    <th>陪玩</th>
-                    <th>时间</th>
-                    <th>金额</th>
-                    <th>状态</th>
-                    <th>收款</th>
-                    <th>发薪</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dashboard.items.map((item) => (
-                    <tr key={item.id}>
-                      <td>#{displayOrderCode(item.order.code)}</td>
-                      <td>{item.order.customer.name}</td>
-                      <td>{item.player.displayName}</td>
-                      <td>
-                        {formatDateTime(item.startAt)}
-                        <br />
-                        {formatDateTime(item.endAt)}
-                      </td>
-                      <td>
-                        总价 {centsToYuan(item.grossAmountCents)}
-                        <br />
-                        酬劳 {centsToYuan(item.playerPayoutCents)}
-                        <br />
-                        时长 {item.billableMinutes ? billableHoursLabel(item.billableMinutes) : "-"}
-                      </td>
-                      <td>{statusBadge(item.status)}</td>
-                      <td>
-                        <button
-                          className={`button ${item.order.paymentStatus === "PAID" ? "secondary" : "amber"}`}
-                          onClick={async () => {
-                            await requestJson(`/api/admin/orders/${item.order.id}/payment`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ paid: item.order.paymentStatus !== "PAID" }),
-                            });
-                            await load();
-                          }}
-                        >
-                          {item.order.paymentStatus === "PAID" ? "已收" : "未收"}
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          className={`button ${item.payrollStatus === "PAID" ? "secondary" : "blue"}`}
-                          onClick={async () => {
-                            await requestJson(`/api/admin/items/${item.id}/payroll`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ paid: item.payrollStatus !== "PAID" }),
-                            });
-                            await load();
-                          }}
-                        >
-                          {item.payrollStatus === "PAID" ? "已发" : "未发"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <LedgerTable dashboard={dashboard} setDashboard={setDashboard} onRefresh={load} toast={toast} />
           </section>
         )}
 
-        {tab === "payroll" && (
-          <section className="grid two">
-            <div className="panel">
-              <div className="section-title">
-                <h2>员工酬劳</h2>
-              </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>陪玩</th>
-                      <th>单数</th>
-                      <th>应发</th>
-                      <th>未发</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dashboard.payrollByPlayer.map((row) => (
-                      <tr key={row.playerId}>
-                        <td>{row.playerName}</td>
-                        <td>{row.count}</td>
-                        <td>{centsToYuan(row.amountCents)}</td>
-                        <td>{centsToYuan(row.unpaidCents || 0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="panel">
-              <div className="section-title">
-                <h2>归属提成</h2>
-              </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>归属人</th>
-                      <th>单数</th>
-                      <th>提成</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dashboard.ownerCommissionByPlayer.map((row) => (
-                      <tr key={row.playerId}>
-                        <td>{row.playerName}</td>
-                        <td>{row.count}</td>
-                        <td>{centsToYuan(row.amountCents)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        )}
+        {tab === "payroll" && <PayrollSummary dashboard={dashboard} />}
+        {tab === "customers" && <CustomerSummary dashboard={dashboard} customerById={customerById} />}
 
-        {tab === "customers" && (
-          <section className="grid">
-            <div className="section-title">
-              <h2>老板消费</h2>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>老板</th>
-                    <th>单数</th>
-                    <th>已审核消费</th>
-                    <th>未收款</th>
-                    <th>档案状态</th>
-                    <th>归属人</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dashboard.spendByCustomer.map((row) => {
-                    const customer = dashboard.customers.find((candidate) => candidate.id === row.customerId);
-                    return (
-                      <tr key={row.customerId}>
-                        <td>{row.customerName}</td>
-                        <td>{row.count}</td>
-                        <td>{centsToYuan(row.amountCents)}</td>
-                        <td>{centsToYuan(row.unpaidCents || 0)}</td>
-                        <td>{customer?.status === "CONFIRMED" ? <span className="badge green">已确认</span> : <span className="badge amber">待确认</span>}</td>
-                        <td>{customer?.owner?.displayName || "-"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        {tab === "config" && (
-          <section className="grid two">
-            <form
-              className="panel form"
-              onSubmit={(event) => {
-                const data = new FormData(event.currentTarget);
-                void postForm(event, "/api/admin/users", {
-                  username: String(data.get("username") || ""),
-                  displayName: String(data.get("displayName") || ""),
-                  password: String(data.get("password") || ""),
-                  role: data.get("role"),
-                });
-              }}
-            >
-              <div className="section-title">
-                <h2>新增账号</h2>
-                <UserPlus size={18} />
-              </div>
-              <input className="input" name="username" placeholder="账号" />
-              <input className="input" name="displayName" placeholder="显示名" />
-              <input className="input" name="password" placeholder="初始密码" />
-              <select className="select" name="role" defaultValue="PLAYER">
-                <option value="PLAYER">陪玩</option>
-                <option value="ADMIN">管理员</option>
-              </select>
-              <button className="button">保存账号</button>
-            </form>
-
-            <form
-              className="panel form"
-              onSubmit={(event) => {
-                const data = new FormData(event.currentTarget);
-                void postForm(event, "/api/admin/categories", {
-                  name: String(data.get("name") || ""),
-                  platformCommissionPercent: Number(data.get("platformCommissionPercent") || 0),
-                  active: true,
-                });
-              }}
-            >
-              <div className="section-title">
-                <h2>品类规则</h2>
-                <Settings size={18} />
-              </div>
-              <input className="input" name="name" placeholder="品类名称" />
-              <input className="input" type="number" name="platformCommissionPercent" placeholder="平台抽成%" />
-              <button className="button">保存品类</button>
-            </form>
-
-            <form
-              className="panel form"
-              onSubmit={(event) => {
-                const data = new FormData(event.currentTarget);
-                void postForm(event, "/api/admin/customers", {
-                  name: String(data.get("name") || ""),
-                  wechat: String(data.get("wechat") || ""),
-                  note: String(data.get("note") || ""),
-                  ownerId: data.get("ownerId") || null,
-                  aliases: String(data.get("aliases") || "")
-                    .split(/[,\s，]+/)
-                    .filter(Boolean),
-                });
-              }}
-            >
-              <div className="section-title">
-                <h2>老板档案</h2>
-                <ShieldCheck size={18} />
-              </div>
-              <input className="input" name="name" placeholder="老板名称" />
-              <input className="input" name="wechat" placeholder="微信/联系方式" />
-              <select className="select" name="ownerId" defaultValue="">
-                <option value="">无归属人</option>
-                {players.map((player) => (
-                  <option key={player.id} value={player.id}>
-                    {player.displayName}
-                  </option>
-                ))}
-              </select>
-              <input className="input" name="aliases" placeholder="别名，逗号分隔" />
-              <input className="input" name="note" placeholder="备注" />
-              <button className="button">保存老板</button>
-            </form>
-
-            <form
-              className="panel form"
-              onSubmit={(event) => {
-                const data = new FormData(event.currentTarget);
-                void postForm(event, "/api/admin/overrides", {
-                  playerId: data.get("playerId"),
-                  categoryId: data.get("categoryId"),
-                  platformCommissionPercent: data.get("platformCommissionPercent")
-                    ? Number(data.get("platformCommissionPercent"))
-                    : null,
-                });
-              }}
-            >
-              <div className="section-title">
-                <h2>员工覆盖规则</h2>
-              </div>
-              <select className="select" name="playerId">
-                {players.map((player) => (
-                  <option key={player.id} value={player.id}>
-                    {player.displayName}
-                  </option>
-                ))}
-              </select>
-              <select className="select" name="categoryId">
-                {dashboard.categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <input className="input" type="number" name="platformCommissionPercent" placeholder="覆盖抽成%，可留空" />
-              <button className="button">保存覆盖</button>
-            </form>
-
-            <form
-              className="panel form"
-              onSubmit={(event) => {
-                const data = new FormData(event.currentTarget);
-                void postForm(event, "/api/admin/settings", {
-                  ownerCommissionPercent: Number(data.get("ownerCommissionPercent") || 0),
-                });
-              }}
-            >
-              <div className="section-title">
-                <h2>归属提成</h2>
-              </div>
-              <input className="input" type="number" name="ownerCommissionPercent" placeholder="归属提成占平台抽成%" />
-              <button className="button">保存比例</button>
-            </form>
-          </section>
-        )}
+        {tab === "config" && <ConfigForms dashboard={dashboard} players={players} onSaved={load} toast={toast} />}
       </div>
     </main>
   );
