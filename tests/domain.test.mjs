@@ -113,6 +113,7 @@ test("normalizes short order code input", () => {
   assert.equal(normalizeOrderCodeInput("3"), "0003");
   assert.equal(normalizeOrderCodeInput("  #单号3  "), "0003");
   assert.equal(normalizeOrderCodeInput("0003"), "0003");
+  assert.equal(normalizeOrderCodeInput("#202605230003"), "202605230003");
   assert.equal(normalizeOrderCodeInput("202605230003"), "202605230003");
 });
 

@@ -284,6 +284,7 @@ export default function MobilePage() {
   const [joinCode, setJoinCode] = useState("");
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
+  const [joining, setJoining] = useState(false);
 
   const customers = bootstrap?.customers ?? [];
   const categories = bootstrap?.categories ?? [];
@@ -340,14 +341,27 @@ export default function MobilePage() {
   }
 
   async function joinOrder() {
-    await requestJson(`/api/mobile/orders/${encodeURIComponent(joinCode.trim())}/join`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-    setToast("已加入该单号");
-    setJoinCode("");
-    await load();
+    const code = joinCode.replace(/\D/g, "");
+    if (!code) {
+      setToast("请输入单号");
+      return;
+    }
+
+    setJoining(true);
+    try {
+      await requestJson(`/api/mobile/orders/${encodeURIComponent(code)}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      setToast("已加入该单号");
+      setJoinCode("");
+      await load();
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "加入失败");
+    } finally {
+      setJoining(false);
+    }
   }
 
   if (loading) {
@@ -445,8 +459,8 @@ export default function MobilePage() {
           </div>
           <div className="toolbar">
             <input className="input" placeholder="输入单号" value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
-            <button className="button blue" disabled={!joinCode.trim()} onClick={joinOrder}>
-              加入
+            <button className="button blue" disabled={!joinCode.trim() || joining} onClick={joinOrder}>
+              {joining ? "加入中" : "加入"}
             </button>
           </div>
         </section>
