@@ -195,6 +195,11 @@ a {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.payroll-summary {
+  display: grid;
+  gap: 16px;
+}
+
 .panel,
 .card {
   border: 1px solid var(--line);
@@ -545,6 +550,10 @@ a {
   border-collapse: collapse;
 }
 
+.payroll-summary .table-wrap table {
+  min-width: 0;
+}
+
 th,
 td {
   padding: 10px 12px;
@@ -575,6 +584,11 @@ tbody tr:hover {
 
 tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.table-empty {
+  color: var(--muted);
+  text-align: center;
 }
 
 .metric-cell,

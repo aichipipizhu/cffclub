@@ -7,7 +7,7 @@ import type { CustomerDto, DashboardDto } from "@/lib/types";
 
 export function PayrollSummary({ dashboard }: { dashboard: DashboardDto }) {
   return (
-    <section className="grid two">
+    <section className="payroll-summary">
       <div className="panel">
         <div className="section-title">
           <h2>员工酬劳</h2>
@@ -23,14 +23,22 @@ export function PayrollSummary({ dashboard }: { dashboard: DashboardDto }) {
               </tr>
             </thead>
             <tbody>
-              {dashboard.payrollByPlayer.map((row) => (
-                <tr key={row.playerId}>
-                  <td>{row.playerName}</td>
-                  <td>{row.count}</td>
-                  <td className="amount-cell">{formatYuan(row.amountCents)}</td>
-                  <td className="amount-cell">{formatYuan(row.unpaidCents || 0)}</td>
+              {dashboard.payrollByPlayer.length > 0 ? (
+                dashboard.payrollByPlayer.map((row) => (
+                  <tr key={row.playerId}>
+                    <td>{row.playerName}</td>
+                    <td>{row.count}</td>
+                    <td className="amount-cell">{formatYuan(row.amountCents)}</td>
+                    <td className="amount-cell">{formatYuan(row.unpaidCents || 0)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="table-empty" colSpan={4}>
+                    暂无数据
+                  </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -49,13 +57,21 @@ export function PayrollSummary({ dashboard }: { dashboard: DashboardDto }) {
               </tr>
             </thead>
             <tbody>
-              {dashboard.ownerCommissionByPlayer.map((row) => (
-                <tr key={row.playerId}>
-                  <td>{row.playerName}</td>
-                  <td>{row.count}</td>
-                  <td className="amount-cell">{formatYuan(row.amountCents)}</td>
+              {dashboard.ownerCommissionByPlayer.length > 0 ? (
+                dashboard.ownerCommissionByPlayer.map((row) => (
+                  <tr key={row.playerId}>
+                    <td>{row.playerName}</td>
+                    <td>{row.count}</td>
+                    <td className="amount-cell">{formatYuan(row.amountCents)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="table-empty" colSpan={3}>
+                    暂无数据
+                  </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
