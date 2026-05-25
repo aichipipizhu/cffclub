@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { handleRouteError, ok, readJson, requireAdmin } from "@/lib/http";
+import { ok, readJson, requireAdmin, wrapRoute } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { bpsFromPercent } from "@/lib/reporting";
 
@@ -10,43 +10,35 @@ const schema = z.object({
   platformCommissionPercent: z.number().min(0).max(100).nullable().optional(),
 });
 
-export async function GET() {
-  try {
-    await requireAdmin();
-    const overrides = await prisma.playerPricingOverride.findMany({
-      include: { player: true, category: true },
-      orderBy: { updatedAt: "desc" },
-    });
-    return ok({ overrides });
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+export const GET = wrapRoute(async () => {
+  await requireAdmin();
+  const overrides = await prisma.playerPricingOverride.findMany({
+    include: { player: true, category: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  return ok({ overrides });
+});
 
-export async function POST(request: Request) {
-  try {
-    await requireAdmin();
-    const input = await readJson(request, schema);
-    const override = await prisma.playerPricingOverride.upsert({
-      where: { playerId_categoryId: { playerId: input.playerId, categoryId: input.categoryId } },
-      update: {
-        platformCommissionRateBps:
-          input.platformCommissionPercent === undefined || input.platformCommissionPercent === null
-            ? null
-            : bpsFromPercent(input.platformCommissionPercent),
-      },
-      create: {
-        playerId: input.playerId,
-        categoryId: input.categoryId,
-        platformCommissionRateBps:
-          input.platformCommissionPercent === undefined || input.platformCommissionPercent === null
-            ? null
-            : bpsFromPercent(input.platformCommissionPercent),
-      },
-      include: { player: true, category: true },
-    });
-    return ok({ override });
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+export const POST = wrapRoute(async (request: Request) => {
+  await requireAdmin();
+  const input = await readJson(request, schema);
+  const override = await prisma.playerPricingOverride.upsert({
+    where: { playerId_categoryId: { playerId: input.playerId, categoryId: input.categoryId } },
+    update: {
+      platformCommissionRateBps:
+        input.platformCommissionPercent === undefined || input.platformCommissionPercent === null
+          ? null
+          : bpsFromPercent(input.platformCommissionPercent),
+    },
+    create: {
+      playerId: input.playerId,
+      categoryId: input.categoryId,
+      platformCommissionRateBps:
+        input.platformCommissionPercent === undefined || input.platformCommissionPercent === null
+          ? null
+          : bpsFromPercent(input.platformCommissionPercent),
+    },
+    include: { player: true, category: true },
+  });
+  return ok({ override });
+});

@@ -1,17 +1,20 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import {
   buildWechatReportText,
-  calculateOrderItemPricing,
+  calculateOrderItemSettlement,
+  centsToYuan,
   canPlayerEditItem,
+  formatOrderCode,
   normalizeOrderCodeInput,
   resolveCommissionRule,
-  summarizeApprovedItems,
 } from "@/lib/domain";
 import { HttpError } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
 export const OWNER_COMMISSION_RATE_KEY = "ownerCommissionRateBps";
+const ORDER_SEQUENCE_KEY_PREFIX = "orderCodeSequence:";
+const ADMIN_ITEM_LIMIT = 500;
 
 const itemInclude = {
   player: true,
@@ -36,8 +39,18 @@ export type DateRange = {
   to?: Date;
 };
 
+type SummaryRow = {
+  playerId?: string;
+  playerName?: string;
+  customerId?: string;
+  customerName?: string;
+  amountCents: number;
+  unpaidCents: number;
+  count: number;
+};
+
 export function centsToInputYuan(cents: number): string {
-  return (cents / 100).toFixed(2).replace(/\.?0+$/, "");
+  return centsToYuan(cents);
 }
 
 export function yuanToCents(value: number): number {
@@ -91,22 +104,29 @@ function shanghaiDatePrefix(date = new Date()): string {
   return `${map.year}${map.month}${map.day}`;
 }
 
-async function nextOrderCode(): Promise<string> {
-  const prefix = shanghaiDatePrefix();
-  const count = await prisma.order.count({ where: { code: { startsWith: prefix } } });
-  return `${prefix}${String(count + 1).padStart(4, "0")}`;
-}
-
 async function createUniqueOrderCode(): Promise<string> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const code = await nextOrderCode();
-    const exists = await prisma.order.findUnique({ where: { code }, select: { id: true } });
-    if (!exists) {
-      return code;
-    }
-  }
+  const prefix = shanghaiDatePrefix();
+  const key = `${ORDER_SEQUENCE_KEY_PREFIX}${prefix}`;
 
-  return `${shanghaiDatePrefix()}${Date.now().toString().slice(-6)}`;
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      INSERT INTO \`Setting\` (\`key\`, \`value\`, \`updatedAt\`)
+      SELECT ${key}, LAST_INSERT_ID(COALESCE(MAX(CAST(SUBSTRING(\`code\`, 9) AS UNSIGNED)), 0) + 1), NOW()
+      FROM \`Order\`
+      WHERE \`code\` LIKE ${`${prefix}%`}
+      ON DUPLICATE KEY UPDATE
+        \`value\` = LAST_INSERT_ID(CAST(\`value\` AS UNSIGNED) + 1),
+        \`updatedAt\` = NOW()
+    `;
+    const rows = await tx.$queryRaw<Array<{ sequence: bigint | number }>>`
+      SELECT LAST_INSERT_ID() AS sequence
+    `;
+    const sequence = Number(rows[0]?.sequence);
+    if (!Number.isSafeInteger(sequence) || sequence <= 0) {
+      throw new Error("INVALID_ORDER_SEQUENCE");
+    }
+    return formatOrderCode(prefix, sequence);
+  });
 }
 
 async function resolveCustomer(input: {
@@ -137,10 +157,7 @@ async function resolveCustomer(input: {
 
 export async function getMobileBootstrap(playerId: string) {
   const [customers, categories, activeItems] = await Promise.all([
-    prisma.customer.findMany({
-      orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
-      include: { owner: true, aliases: true },
-    }),
+    searchMobileCustomers(),
     prisma.category.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.orderItem.findMany({
       where: {
@@ -154,6 +171,24 @@ export async function getMobileBootstrap(playerId: string) {
   ]);
 
   return { customers, categories, activeItems };
+}
+
+export async function searchMobileCustomers(query = "") {
+  const keyword = query.trim();
+  return prisma.customer.findMany({
+    where: keyword
+      ? {
+          OR: [
+            { name: { contains: keyword } },
+            { wechat: { contains: keyword } },
+            { aliases: { some: { alias: { contains: keyword } } } },
+          ],
+        }
+      : undefined,
+    orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+    include: { owner: true, aliases: true },
+    take: keyword ? 50 : 100,
+  });
 }
 
 export async function listPlayerItems(playerId: string) {
@@ -278,7 +313,7 @@ export async function updatePlayerOrderItem(input: {
       throw new HttpError(400, "结束报单需要填写结束时间");
     }
     const ownerCommissionRateBps = await getOwnerCommissionRateBps();
-    const { billableHours: _billableHours, ...pricing } = calculateOrderItemPricing({
+    const pricing = calculateOrderItemSettlement({
       startAt,
       endAt,
       unitPriceCents: item.unitPriceCents,
@@ -379,7 +414,7 @@ export async function reviewOrderItem(input: {
   const platformCommissionRateBps =
     input.platformCommissionRateBps ?? item.platformCommissionRateBps;
   const ownerCommissionRateBps = await getOwnerCommissionRateBps();
-  const { billableHours: _billableHours, ...pricing } = calculateOrderItemPricing({
+  const pricing = calculateOrderItemSettlement({
     startAt,
     endAt,
     unitPriceCents,
@@ -502,90 +537,172 @@ export async function listAdminItems(range: DateRange = {}) {
     where: rangeWhere(range),
     include: itemInclude,
     orderBy: { updatedAt: "desc" },
-    take: 500,
+    take: ADMIN_ITEM_LIMIT + 1,
   });
 }
 
+function cents(value?: number | bigint | null): number {
+  return Number(value ?? 0);
+}
+
+async function summarizeAdminTotals(range: DateRange) {
+  const approvedWhere = { ...rangeWhere(range), status: "APPROVED" as const };
+  const [approved, unpaid, unpaidPayroll] = await Promise.all([
+    prisma.orderItem.aggregate({
+      where: approvedWhere,
+      _count: { _all: true },
+      _sum: {
+        grossAmountCents: true,
+        platformCommissionCents: true,
+        playerPayoutCents: true,
+        ownerCommissionCents: true,
+      },
+    }),
+    prisma.orderItem.aggregate({
+      where: { ...approvedWhere, order: { paymentStatus: "UNPAID" } },
+      _sum: { grossAmountCents: true },
+    }),
+    prisma.orderItem.aggregate({
+      where: { ...approvedWhere, payrollStatus: "UNPAID" },
+      _sum: { playerPayoutCents: true },
+    }),
+  ]);
+
+  const platformCommissionCents = cents(approved._sum.platformCommissionCents);
+  const ownerCommissionCents = cents(approved._sum.ownerCommissionCents);
+  return {
+    approvedCount: approved._count._all,
+    grossAmountCents: cents(approved._sum.grossAmountCents),
+    unpaidAmountCents: cents(unpaid._sum.grossAmountCents),
+    platformCommissionCents,
+    playerPayoutCents: cents(approved._sum.playerPayoutCents),
+    ownerCommissionCents,
+    unpaidPayrollCents: cents(unpaidPayroll._sum.playerPayoutCents),
+    platformNetCents: platformCommissionCents - ownerCommissionCents,
+  };
+}
+
+async function summarizePayrollByPlayer(range: DateRange, usersById: Map<string, { displayName: string }>): Promise<SummaryRow[]> {
+  const approvedWhere = { ...rangeWhere(range), status: "APPROVED" as const };
+  const [amounts, unpaidAmounts] = await Promise.all([
+    prisma.orderItem.groupBy({
+      by: ["playerId"],
+      where: approvedWhere,
+      _count: { _all: true },
+      _sum: { playerPayoutCents: true },
+    }),
+    prisma.orderItem.groupBy({
+      by: ["playerId"],
+      where: { ...approvedWhere, payrollStatus: "UNPAID" },
+      _sum: { playerPayoutCents: true },
+    }),
+  ]);
+  const unpaidByPlayer = new Map(unpaidAmounts.map((row) => [row.playerId, cents(row._sum.playerPayoutCents)]));
+
+  return amounts
+    .map((row) => ({
+      playerId: row.playerId,
+      playerName: usersById.get(row.playerId)?.displayName ?? "未知陪玩",
+      amountCents: cents(row._sum.playerPayoutCents),
+      unpaidCents: unpaidByPlayer.get(row.playerId) ?? 0,
+      count: row._count._all,
+    }))
+    .sort((a, b) => b.amountCents - a.amountCents);
+}
+
+function adminRangeSql(range: DateRange) {
+  return Prisma.sql`
+    ${range.from ? Prisma.sql`AND oi.\`startAt\` >= ${range.from}` : Prisma.empty}
+    ${range.to ? Prisma.sql`AND oi.\`startAt\` <= ${range.to}` : Prisma.empty}
+  `;
+}
+
+async function summarizeSpendByCustomer(range: DateRange): Promise<SummaryRow[]> {
+  const rows = await prisma.$queryRaw<
+    Array<{
+      customerId: string;
+      customerName: string;
+      amountCents: bigint | number;
+      unpaidCents: bigint | number;
+      count: bigint | number;
+    }>
+  >(Prisma.sql`
+    SELECT
+      o.\`customerId\` AS customerId,
+      c.\`name\` AS customerName,
+      SUM(oi.\`grossAmountCents\`) AS amountCents,
+      SUM(CASE WHEN o.\`paymentStatus\` = 'UNPAID' THEN oi.\`grossAmountCents\` ELSE 0 END) AS unpaidCents,
+      COUNT(*) AS count
+    FROM \`OrderItem\` oi
+    INNER JOIN \`Order\` o ON o.\`id\` = oi.\`orderId\`
+    INNER JOIN \`Customer\` c ON c.\`id\` = o.\`customerId\`
+    WHERE oi.\`status\` = 'APPROVED'
+    ${adminRangeSql(range)}
+    GROUP BY o.\`customerId\`, c.\`name\`
+    ORDER BY amountCents DESC
+  `);
+
+  return rows.map((row) => ({
+    customerId: row.customerId,
+    customerName: row.customerName,
+    amountCents: cents(row.amountCents),
+    unpaidCents: cents(row.unpaidCents),
+    count: cents(row.count),
+  }));
+}
+
+async function summarizeOwnerCommissionByPlayer(range: DateRange, usersById: Map<string, { displayName: string }>): Promise<SummaryRow[]> {
+  const rows = await prisma.ownerCommission.groupBy({
+    by: ["ownerId"],
+    where: { orderItem: { ...rangeWhere(range), status: "APPROVED" } },
+    _count: { _all: true },
+    _sum: { amountCents: true },
+  });
+
+  return rows
+    .map((row) => ({
+      playerId: row.ownerId,
+      playerName: usersById.get(row.ownerId)?.displayName ?? "未知归属人",
+      amountCents: cents(row._sum.amountCents),
+      unpaidCents: 0,
+      count: row._count._all,
+    }))
+    .sort((a, b) => b.amountCents - a.amountCents);
+}
+
 export async function getAdminDashboard(range: DateRange = {}) {
-  const [items, customers, users, categories, settings] = await Promise.all([
+  const [rawItems, customers, users, categories, settings, totals, spendByCustomer] = await Promise.all([
     listAdminItems(range),
     prisma.customer.findMany({ include: { owner: true, aliases: true }, orderBy: { updatedAt: "desc" } }),
     prisma.user.findMany({ orderBy: [{ role: "asc" }, { displayName: "asc" }] }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.setting.findMany(),
+    summarizeAdminTotals(range),
+    summarizeSpendByCustomer(range),
+  ]);
+  const usersById = new Map(users.map((user) => [user.id, user]));
+  const [payrollByPlayer, ownerCommissionByPlayer] = await Promise.all([
+    summarizePayrollByPlayer(range, usersById),
+    summarizeOwnerCommissionByPlayer(range, usersById),
   ]);
 
-  const totals = summarizeApprovedItems(
-    items.map((item) => ({
-      status: item.status,
-      paymentStatus: item.order.paymentStatus,
-      payrollStatus: item.payrollStatus,
-      grossAmountCents: item.grossAmountCents,
-      platformCommissionCents: item.platformCommissionCents,
-      playerPayoutCents: item.playerPayoutCents,
-      ownerCommissionCents: item.ownerCommissionCents,
-    })),
-  );
-
-  const payrollByPlayer = new Map<string, { playerId: string; playerName: string; amountCents: number; unpaidCents: number; count: number }>();
-  const spendByCustomer = new Map<string, { customerId: string; customerName: string; amountCents: number; unpaidCents: number; count: number }>();
-  const ownerCommissionByPlayer = new Map<string, { playerId: string; playerName: string; amountCents: number; count: number }>();
-
-  for (const item of items) {
-    if (item.status !== "APPROVED") {
-      continue;
-    }
-
-    const payroll = payrollByPlayer.get(item.playerId) ?? {
-      playerId: item.playerId,
-      playerName: item.player.displayName,
-      amountCents: 0,
-      unpaidCents: 0,
-      count: 0,
-    };
-    payroll.amountCents += item.playerPayoutCents;
-    payroll.unpaidCents += item.payrollStatus === "UNPAID" ? item.playerPayoutCents : 0;
-    payroll.count += 1;
-    payrollByPlayer.set(item.playerId, payroll);
-
-    const spend = spendByCustomer.get(item.order.customerId) ?? {
-      customerId: item.order.customerId,
-      customerName: item.order.customer.name,
-      amountCents: 0,
-      unpaidCents: 0,
-      count: 0,
-    };
-    spend.amountCents += item.grossAmountCents;
-    spend.unpaidCents += item.order.paymentStatus === "UNPAID" ? item.grossAmountCents : 0;
-    spend.count += 1;
-    spendByCustomer.set(item.order.customerId, spend);
-
-    const owner = item.order.customer.owner;
-    if (owner && item.ownerCommissionCents > 0) {
-      const ownerSummary = ownerCommissionByPlayer.get(owner.id) ?? {
-        playerId: owner.id,
-        playerName: owner.displayName,
-        amountCents: 0,
-        count: 0,
-      };
-      ownerSummary.amountCents += item.ownerCommissionCents;
-      ownerSummary.count += 1;
-      ownerCommissionByPlayer.set(owner.id, ownerSummary);
-    }
-  }
+  const hasMoreItems = rawItems.length > ADMIN_ITEM_LIMIT;
+  const items = rawItems.slice(0, ADMIN_ITEM_LIMIT);
 
   return {
     totals,
     items,
+    itemPage: {
+      limit: ADMIN_ITEM_LIMIT,
+      hasMore: hasMoreItems,
+    },
     customers,
     users,
     categories,
     settings,
-    payrollByPlayer: [...payrollByPlayer.values()].sort((a, b) => b.amountCents - a.amountCents),
-    spendByCustomer: [...spendByCustomer.values()].sort((a, b) => b.amountCents - a.amountCents),
-    ownerCommissionByPlayer: [...ownerCommissionByPlayer.values()].sort(
-      (a, b) => b.amountCents - a.amountCents,
-    ),
+    payrollByPlayer,
+    spendByCustomer,
+    ownerCommissionByPlayer,
   };
 }
 

@@ -12,109 +12,10 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { fromInputDateTime, statusBadge, toInputDateTime } from "@/lib/clientFormat";
+import { requestJson } from "@/lib/clientHttp";
 import { billableHoursLabel, centsToYuan, displayOrderCode } from "@/lib/domain";
-
-type AdminUser = {
-  id: string;
-  username: string;
-  displayName: string;
-  role: "ADMIN" | "PLAYER";
-  active: boolean;
-};
-
-type Customer = {
-  id: string;
-  name: string;
-  wechat?: string | null;
-  note?: string | null;
-  status: "PENDING" | "CONFIRMED";
-  ownerId?: string | null;
-  owner?: AdminUser | null;
-  aliases?: { alias: string }[];
-};
-
-type Category = {
-  id: string;
-  name: string;
-  platformCommissionRateBps: number;
-  active: boolean;
-};
-
-type OrderItem = {
-  id: string;
-  status: "STARTED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
-  payrollStatus: "UNPAID" | "PAID";
-  startAt: string;
-  endAt?: string | null;
-  billableMinutes: number;
-  unitPriceCents: number;
-  grossAmountCents: number;
-  platformCommissionRateBps: number;
-  platformCommissionCents: number;
-  playerPayoutCents: number;
-  ownerCommissionCents: number;
-  gameId?: string | null;
-  note?: string | null;
-  rejectedReason?: string | null;
-  player: AdminUser;
-  order: {
-    id: string;
-    code: string;
-    paymentStatus: "UNPAID" | "PAID";
-    customer: Customer;
-    category: Category;
-  };
-};
-
-type SummaryRow = {
-  playerId?: string;
-  playerName?: string;
-  customerId?: string;
-  customerName?: string;
-  amountCents: number;
-  unpaidCents?: number;
-  count: number;
-};
-
-type Dashboard = {
-  totals: {
-    approvedCount: number;
-    grossAmountCents: number;
-    unpaidAmountCents: number;
-    platformCommissionCents: number;
-    playerPayoutCents: number;
-    ownerCommissionCents: number;
-    unpaidPayrollCents: number;
-    platformNetCents: number;
-  };
-  items: OrderItem[];
-  customers: Customer[];
-  users: AdminUser[];
-  categories: Category[];
-  payrollByPlayer: SummaryRow[];
-  spendByCustomer: SummaryRow[];
-  ownerCommissionByPlayer: SummaryRow[];
-};
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
-  const payload = (await response.json()) as T & { error?: string };
-  if (!response.ok) {
-    throw new Error(payload.error || "请求失败");
-  }
-  return payload;
-}
-
-function toInputDateTime(value?: string | Date | null): string {
-  if (!value) return "";
-  const date = new Date(value);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
-}
-
-function fromInputDateTime(value: string): string | undefined {
-  return value ? new Date(value).toISOString() : undefined;
-}
+import type { DashboardDto, OrderItemDto, UserDto } from "@/lib/types";
 
 function percent(value: number): string {
   return String(value / 100);
@@ -128,13 +29,6 @@ function formatDateTime(value?: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function statusBadge(status: OrderItem["status"]) {
-  if (status === "APPROVED") return <span className="badge green">已入账</span>;
-  if (status === "PENDING_REVIEW") return <span className="badge amber">待审核</span>;
-  if (status === "REJECTED") return <span className="badge red">已驳回</span>;
-  return <span className="badge">进行中</span>;
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) {
@@ -151,7 +45,7 @@ function ReviewControls({
   onDone,
   setToast,
 }: {
-  item: OrderItem;
+  item: OrderItemDto;
   onDone: () => Promise<void>;
   setToast: (message: string) => void;
 }) {
@@ -228,7 +122,7 @@ function ReviewControls({
 }
 
 export default function AdminPage() {
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardDto | null>(null);
   const [tab, setTab] = useState("review");
   const [toast, setToast] = useState("");
   const [from, setFrom] = useState("");
@@ -250,7 +144,7 @@ export default function AdminPage() {
   }
 
   async function load() {
-    const me = await requestJson<{ user: AdminUser | null }>("/api/auth/me");
+    const me = await requestJson<{ user: UserDto | null }>("/api/auth/me");
     if (!me.user) {
       window.location.href = "/login";
       return;
@@ -259,7 +153,7 @@ export default function AdminPage() {
       window.location.href = "/mobile";
       return;
     }
-    const data = await requestJson<Dashboard>(`/api/admin/dashboard${rangeQuery()}`);
+    const data = await requestJson<DashboardDto>(`/api/admin/dashboard${rangeQuery()}`);
     setDashboard(data);
     setLoading(false);
   }

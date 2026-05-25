@@ -15,3 +15,9 @@ test("player submission recalculates from stored order item pricing", () => {
   assert.match(updateSource, /platformCommissionRateBps:\s*item\.platformCommissionRateBps/);
   assert.doesNotMatch(updateSource, /resolveCommissionForPlayer/);
 });
+
+test("order code sequence initializes from existing daily max and then increments atomically", () => {
+  assert.ok(reportingSource.includes("LAST_INSERT_ID(COALESCE(MAX(CAST(SUBSTRING(\\`code\\`, 9) AS UNSIGNED)), 0) + 1)"));
+  assert.match(reportingSource, /ON DUPLICATE KEY UPDATE/);
+  assert.ok(reportingSource.includes("LAST_INSERT_ID(CAST(\\`value\\` AS UNSIGNED) + 1)"));
+});

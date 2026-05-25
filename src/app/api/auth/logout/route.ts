@@ -1,12 +1,7 @@
 import { clearSessionCookie } from "@/lib/auth";
-import { handleRouteError, ok } from "@/lib/http";
+import { ok, wrapRoute } from "@/lib/http";
 
-export async function POST() {
-  try {
-    await clearSessionCookie();
-    return ok({ ok: true });
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
-
+export const POST = wrapRoute(async () => {
+  await clearSessionCookie();
+  return ok({ ok: true });
+});

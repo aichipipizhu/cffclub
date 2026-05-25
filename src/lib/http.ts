@@ -33,6 +33,19 @@ export function handleRouteError(error: unknown): NextResponse<{ error: string }
   return NextResponse.json({ error: "服务器错误" }, { status: 500 });
 }
 
+export function wrapRoute<TContext = unknown>(
+  handler: (request: Request, context: TContext) => Response | Promise<Response>,
+  onError: (error: unknown) => Response = handleRouteError,
+) {
+  return async (request: Request, context: TContext) => {
+    try {
+      return await handler(request, context);
+    } catch (error) {
+      return onError(error);
+    }
+  };
+}
+
 export async function requireUser(): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) {

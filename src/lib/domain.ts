@@ -27,6 +27,8 @@ export type PricingResult = {
   ownerCommissionCents: number;
 };
 
+export type PricingSettlementFields = Omit<PricingResult, "billableHours">;
+
 export type PreviewOrderItemPricingInput = {
   startAt: string;
   endAt: string;
@@ -120,6 +122,11 @@ export function calculateOrderItemPricing(input: PricingInput): PricingResult {
   };
 }
 
+export function calculateOrderItemSettlement(input: PricingInput): PricingSettlementFields {
+  const { billableHours: _displayOnly, ...settlement } = calculateOrderItemPricing(input);
+  return settlement;
+}
+
 export function previewOrderItemPricing(
   input: PreviewOrderItemPricingInput,
 ): PreviewOrderItemPricingResult {
@@ -209,6 +216,10 @@ export function centsToYuan(cents: number): string {
 
 export function shortOrderCode(code: string): string {
   return code.length <= 4 ? code : code.slice(-4);
+}
+
+export function formatOrderCode(prefix: string, sequence: number): string {
+  return `${prefix}${String(sequence).padStart(4, "0")}`;
 }
 
 export function displayOrderCode(code: string): string {

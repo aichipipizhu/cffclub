@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { handleRouteError, ok, readJson, requireAdmin } from "@/lib/http";
+import { ok, readJson, requireAdmin, wrapRoute } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
 const createSchema = z.object({
@@ -17,44 +17,35 @@ const patchSchema = createSchema.partial().extend({
   mergeToCustomerId: z.string().optional(),
 });
 
-export async function GET() {
-  try {
-    await requireAdmin();
-    const customers = await prisma.customer.findMany({
-      include: { owner: true, aliases: true },
-      orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
-    });
-    return ok({ customers });
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+export const GET = wrapRoute(async () => {
+  await requireAdmin();
+  const customers = await prisma.customer.findMany({
+    include: { owner: true, aliases: true },
+    orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+  });
+  return ok({ customers });
+});
 
-export async function POST(request: Request) {
-  try {
-    await requireAdmin();
-    const input = await readJson(request, createSchema);
-    const customer = await prisma.customer.create({
-      data: {
-        name: input.name,
-        wechat: input.wechat || null,
-        note: input.note || null,
-        ownerId: input.ownerId || null,
-        status: "CONFIRMED",
-        aliases: { create: (input.aliases ?? []).filter(Boolean).map((alias) => ({ alias })) },
-      },
-      include: { owner: true, aliases: true },
-    });
-    return ok({ customer });
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+export const POST = wrapRoute(async (request: Request) => {
+  await requireAdmin();
+  const input = await readJson(request, createSchema);
+  const customer = await prisma.customer.create({
+    data: {
+      name: input.name,
+      wechat: input.wechat || null,
+      note: input.note || null,
+      ownerId: input.ownerId || null,
+      status: "CONFIRMED",
+      aliases: { create: (input.aliases ?? []).filter(Boolean).map((alias) => ({ alias })) },
+    },
+    include: { owner: true, aliases: true },
+  });
+  return ok({ customer });
+});
 
-export async function PATCH(request: Request) {
-  try {
-    await requireAdmin();
-    const input = await readJson(request, patchSchema);
+export const PATCH = wrapRoute(async (request: Request) => {
+  await requireAdmin();
+  const input = await readJson(request, patchSchema);
 
     if (input.mergeToCustomerId) {
       const targetCustomerId = input.mergeToCustomerId;
@@ -86,8 +77,8 @@ export async function PATCH(request: Request) {
           include: { owner: true, aliases: true },
         });
       });
-      return ok({ customer: merged });
-    }
+    return ok({ customer: merged });
+  }
 
     const customer = await prisma.customer.update({
       where: { id: input.id },
@@ -108,8 +99,5 @@ export async function PATCH(request: Request) {
       },
       include: { owner: true, aliases: true },
     });
-    return ok({ customer });
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+  return ok({ customer });
+});

@@ -1,14 +1,13 @@
 import ExcelJS from "exceljs";
 
 import { centsToYuan, billableHoursLabel, shortOrderCode } from "@/lib/domain";
-import { handleRouteError, parseDateRange, requireAdmin } from "@/lib/http";
+import { parseDateRange, requireAdmin, wrapRoute } from "@/lib/http";
 import { getAdminDashboard } from "@/lib/reporting";
 
-export async function GET(request: Request) {
-  try {
-    await requireAdmin();
-    const range = parseDateRange(new URL(request.url));
-    const dashboard = await getAdminDashboard(range);
+export const GET = wrapRoute(async (request: Request) => {
+  await requireAdmin();
+  const range = parseDateRange(new URL(request.url));
+  const dashboard = await getAdminDashboard(range);
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "kabuda-reporting";
@@ -93,13 +92,10 @@ export async function GET(request: Request) {
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return new Response(buffer, {
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="kabuda-report-${Date.now()}.xlsx"`,
-      },
-    });
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+  return new Response(buffer, {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="kabuda-report-${Date.now()}.xlsx"`,
+    },
+  });
+});

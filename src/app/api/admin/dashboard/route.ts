@@ -1,13 +1,8 @@
-import { handleRouteError, ok, parseDateRange, requireAdmin } from "@/lib/http";
+import { ok, parseDateRange, requireAdmin, wrapRoute } from "@/lib/http";
 import { getAdminDashboard } from "@/lib/reporting";
 
-export async function GET(request: Request) {
-  try {
-    await requireAdmin();
-    const range = parseDateRange(new URL(request.url));
-    return ok(await getAdminDashboard(range));
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
-
+export const GET = wrapRoute(async (request: Request) => {
+  await requireAdmin();
+  const range = parseDateRange(new URL(request.url));
+  return ok(await getAdminDashboard(range));
+});

@@ -3,96 +3,22 @@
 import { Calculator, Clipboard, LogOut, Play, RefreshCw, Send, SquarePlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { fromInputDateTime, statusBadge, toInputDateTime } from "@/lib/clientFormat";
+import { requestJson } from "@/lib/clientHttp";
 import {
   billableHoursLabel,
   centsToYuan,
   displayOrderCode,
   previewOrderItemPricing,
 } from "@/lib/domain";
-
-type User = {
-  id: string;
-  displayName: string;
-  role: "ADMIN" | "PLAYER";
-};
-
-type Customer = {
-  id: string;
-  name: string;
-  status: "PENDING" | "CONFIRMED";
-  owner?: { displayName: string } | null;
-};
-
-type Category = {
-  id: string;
-  name: string;
-  platformCommissionRateBps: number;
-};
-
-type OrderItem = {
-  id: string;
-  status: "STARTED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
-  gameId?: string | null;
-  note?: string | null;
-  startAt: string;
-  endAt?: string | null;
-  billableMinutes: number;
-  unitPriceCents: number;
-  grossAmountCents: number;
-  platformCommissionRateBps: number;
-  platformCommissionCents: number;
-  playerPayoutCents: number;
-  ownerCommissionRateBps: number;
-  rejectedReason?: string | null;
-  order: {
-    code: string;
-    paymentStatus: "UNPAID" | "PAID";
-    customer: Customer;
-    category: Category;
-  };
-};
-
-type BootstrapPayload = {
-  customers: Customer[];
-  categories: Category[];
-  activeItems: OrderItem[];
-};
-
-function toInputDateTime(value?: string | Date | null): string {
-  if (!value) {
-    return "";
-  }
-  const date = new Date(value);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
-}
-
-function fromInputDateTime(value: string): string | undefined {
-  return value ? new Date(value).toISOString() : undefined;
-}
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
-  const payload = (await response.json()) as T & { error?: string };
-  if (!response.ok) {
-    throw new Error(payload.error || "请求失败");
-  }
-  return payload;
-}
-
-function statusBadge(status: OrderItem["status"]) {
-  if (status === "APPROVED") return <span className="badge green">已入账</span>;
-  if (status === "PENDING_REVIEW") return <span className="badge amber">待审核</span>;
-  if (status === "REJECTED") return <span className="badge red">已驳回</span>;
-  return <span className="badge">进行中</span>;
-}
+import type { MobileBootstrapDto, OrderItemDto, UserDto } from "@/lib/types";
 
 function ItemCard({
   item,
   onChanged,
   setToast,
 }: {
-  item: OrderItem;
+  item: OrderItemDto;
   onChanged: () => Promise<void>;
   setToast: (message: string) => void;
 }) {
@@ -111,21 +37,9 @@ function ItemCard({
   const shownBillableMinutes = previewPricing?.billableMinutes ?? item.billableMinutes;
   const shownGrossAmountCents = previewPricing?.grossAmountCents ?? item.grossAmountCents;
   const shownPlayerPayoutCents = previewPricing?.playerPayoutCents ?? item.playerPayoutCents;
-  const shownBillableHoursLabel = previewPricing
-    ? billableHoursLabel(shownBillableMinutes)
-    : shownBillableMinutes
-      ? billableHoursLabel(shownBillableMinutes)
-      : "-";
-  const shownGrossAmountLabel = previewPricing
-    ? centsToYuan(shownGrossAmountCents)
-    : shownGrossAmountCents
-      ? centsToYuan(shownGrossAmountCents)
-      : "-";
-  const shownPlayerPayoutLabel = previewPricing
-    ? centsToYuan(shownPlayerPayoutCents)
-    : shownPlayerPayoutCents
-      ? centsToYuan(shownPlayerPayoutCents)
-      : "-";
+  const shownBillableHoursLabel = shownBillableMinutes ? billableHoursLabel(shownBillableMinutes) : "-";
+  const shownGrossAmountLabel = shownGrossAmountCents ? centsToYuan(shownGrossAmountCents) : "-";
+  const shownPlayerPayoutLabel = shownPlayerPayoutCents ? centsToYuan(shownPlayerPayoutCents) : "-";
 
   async function submitItem(endAtOverride?: string) {
     setBusy(true);
@@ -273,10 +187,11 @@ function ItemCard({
 }
 
 export default function MobilePage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null);
-  const [items, setItems] = useState<OrderItem[]>([]);
+  const [user, setUser] = useState<UserDto | null>(null);
+  const [bootstrap, setBootstrap] = useState<MobileBootstrapDto | null>(null);
+  const [items, setItems] = useState<OrderItemDto[]>([]);
   const [customerMode, setCustomerMode] = useState("existing");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [newCustomerName, setNewCustomerName] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -297,7 +212,7 @@ export default function MobilePage() {
   }, [categories, categoryId]);
 
   async function load() {
-    const me = await requestJson<{ user: User | null }>("/api/auth/me");
+    const me = await requestJson<{ user: UserDto | null }>("/api/auth/me");
     if (!me.user) {
       window.location.href = "/login";
       return;
@@ -309,8 +224,8 @@ export default function MobilePage() {
     setUser(me.user);
 
     const [boot, list] = await Promise.all([
-      requestJson<BootstrapPayload>("/api/mobile/bootstrap"),
-      requestJson<{ items: OrderItem[] }>("/api/mobile/orders"),
+      requestJson<MobileBootstrapDto>("/api/mobile/bootstrap"),
+      requestJson<{ items: OrderItemDto[] }>("/api/mobile/orders"),
     ]);
     setBootstrap(boot);
     setItems(list.items);
@@ -325,6 +240,26 @@ export default function MobilePage() {
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const timeout = window.setTimeout(() => {
+      void requestJson<{ customers: MobileBootstrapDto["customers"] }>(
+        `/api/mobile/customers?query=${encodeURIComponent(customerSearch)}`,
+      )
+        .then((payload) => {
+          setBootstrap((current) => (current ? { ...current, customers: payload.customers } : current));
+          setCustomerId((current) => {
+            if (payload.customers.some((customer) => customer.id === current)) return current;
+            return payload.customers[0]?.id || "";
+          });
+        })
+        .catch((error) => {
+          setToast(error instanceof Error ? error.message : "老板搜索失败");
+        });
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [customerSearch, loading]);
 
   async function startOrder() {
     await requestJson("/api/mobile/orders", {
@@ -424,6 +359,12 @@ export default function MobilePage() {
             {customerMode === "existing" ? (
               <div className="field">
                 <label>老板档案</label>
+                <input
+                  className="input"
+                  placeholder="搜索老板、微信或别名"
+                  value={customerSearch}
+                  onChange={(event) => setCustomerSearch(event.target.value)}
+                />
                 <select className="select" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
                   {customers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
@@ -431,6 +372,7 @@ export default function MobilePage() {
                     </option>
                   ))}
                 </select>
+                {customers.length === 0 && <span className="muted">没有匹配的老板档案</span>}
               </div>
             ) : (
               <div className="field">

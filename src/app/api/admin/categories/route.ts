@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { handleRouteError, ok, readJson, requireAdmin } from "@/lib/http";
+import { ok, readJson, requireAdmin, wrapRoute } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { bpsFromPercent } from "@/lib/reporting";
 
@@ -11,34 +11,26 @@ const schema = z.object({
   active: z.boolean().default(true),
 });
 
-export async function GET() {
-  try {
-    await requireAdmin();
-    return ok({ categories: await prisma.category.findMany({ orderBy: { name: "asc" } }) });
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+export const GET = wrapRoute(async () => {
+  await requireAdmin();
+  return ok({ categories: await prisma.category.findMany({ orderBy: { name: "asc" } }) });
+});
 
-export async function POST(request: Request) {
-  try {
-    await requireAdmin();
-    const input = await readJson(request, schema);
-    const category = await prisma.category.upsert({
-      where: { id: input.id || "__new__" },
-      update: {
-        name: input.name,
-        platformCommissionRateBps: bpsFromPercent(input.platformCommissionPercent),
-        active: input.active,
-      },
-      create: {
-        name: input.name,
-        platformCommissionRateBps: bpsFromPercent(input.platformCommissionPercent),
-        active: input.active,
-      },
-    });
-    return ok({ category });
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+export const POST = wrapRoute(async (request: Request) => {
+  await requireAdmin();
+  const input = await readJson(request, schema);
+  const category = await prisma.category.upsert({
+    where: { id: input.id || "__new__" },
+    update: {
+      name: input.name,
+      platformCommissionRateBps: bpsFromPercent(input.platformCommissionPercent),
+      active: input.active,
+    },
+    create: {
+      name: input.name,
+      platformCommissionRateBps: bpsFromPercent(input.platformCommissionPercent),
+      active: input.active,
+    },
+  });
+  return ok({ category });
+});

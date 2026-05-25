@@ -24,3 +24,26 @@
 已将报单单价从品类/员工覆盖配置中解耦：移动端开局和加入单号时必须填写单价，订单明细保存该单价；陪玩提交审核时继续使用明细自身单价和抽成计算，管理员审核仍可修正单价。品类与员工覆盖配置只保留平台抽成，新增迁移删除历史配置单价字段。
 
 验证结果：`npm run prisma:generate` 通过；`npm test` 通过；`npm run build` 通过。首次 `prisma generate` 因本项目 Next dev server 锁住 Prisma DLL 失败，停止对应 dev server 后重跑通过。
+
+## 坏味道与并发性能问题修复计划
+
+- [x] 诊断用户列出的重复、类型漂移、计价返回、单号生成和后台查询问题，确认受影响文件。
+- [x] 抽取客户端共享工具：新增 `src/lib/clientHttp.ts`、`src/lib/clientFormat.tsx`，复用 `requestJson`、时间输入转换和状态徽章。
+- [x] 单点定义前后端 DTO：新增或扩展 `src/lib/types.ts`，让 admin/mobile 页面引用共享响应类型，减少页面内手写重复类型。
+- [x] 简化计价返回使用：拆出可直接写入 `OrderItem` 的结算字段，消除丢弃 `billableHours` 的解构写法，并同步测试。
+- [x] 修复单号并发风险：改用 `Setting` 中的日期序号键，并在事务内通过 MySQL 原子自增语句生成 `yyyyMMddNNNN`，保留唯一约束作为最后防线。
+- [x] 优化后台聚合查询：将员工酬劳、老板消费、归属提成聚合改为数据库侧 `groupBy`/分组查询，保留流水列表 `take 500`，并为后续分页预留响应字段。
+- [x] 优化移动端老板档案加载：bootstrap 仅取最近档案，并新增移动端老板搜索接口与搜索输入。
+- [x] 简化移动端预览标签表达式，去掉重复三元逻辑。
+- [x] 引入 `wrapRoute` 并逐步替换 API route 中重复的 `try/catch handleRouteError` 模板。
+- [x] 运行最小必要验证：`npm test`；如涉及 Prisma Client 类型变化，补跑 `npm run prisma:generate`；最后视改动跑 `npx tsc --noEmit` 或 `npm run build`。
+
+### 待确认
+
+建议分两步实施：第一步做低风险重构（客户端工具、DTO、计价返回、预览标签、route wrapper），第二步做高风险行为/性能改动（单号并发生成、后台聚合）。单号生成计划依赖 MySQL 原子更新语义，适合生产环境；本地测试若没有 MySQL 只能用单元测试覆盖生成逻辑。
+
+### 回顾总结
+
+已完成客户端重复工具抽取、前端 DTO 单点定义、计价结算字段拆分、移动端预览标签简化、route handler `wrapRoute` 包装、单号按日期原子递增、后台聚合数据库侧计算，以及移动端老板档案最近加载 + 搜索接口。单号序号首次初始化会读取当天已有订单最大后缀，避免已有旧订单时从 0001 撞号。
+
+验证结果：`npm test` 通过 27 项；`npx tsc --noEmit` 通过；`npm run build` 通过。构建中 Prisma 提示 `package.json#prisma` 配置将在 Prisma 7 废弃，这是既有配置警告，本次未调整。
