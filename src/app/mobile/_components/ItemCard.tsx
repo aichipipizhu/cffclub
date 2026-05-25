@@ -6,7 +6,7 @@ import { useState } from "react";
 import type { ToastApi } from "@/app/_components/feedback";
 import { fromInputDateTime, statusBadge, toInputDateTime } from "@/lib/clientFormat";
 import { requestJson } from "@/lib/clientHttp";
-import { billableHoursLabel, centsToYuan, displayOrderCode, previewOrderItemPricing } from "@/lib/domain";
+import { billableHoursLabel, displayOrderCode, formatYuan, previewOrderItemPricing } from "@/lib/domain";
 import type { OrderItemDto } from "@/lib/types";
 
 export function ItemCard({
@@ -181,19 +181,10 @@ export function ItemCard({
         </div>
       </div>
 
-      <div className="grid three">
-        <div className="stat">
-          <span>时长</span>
-          <strong>{shownBillableMinutes ? billableHoursLabel(shownBillableMinutes) : "-"}</strong>
-        </div>
-        <div className="stat">
-          <span>总价</span>
-          <strong>{shownGrossAmountCents ? centsToYuan(shownGrossAmountCents) : "-"}</strong>
-        </div>
-        <div className="stat">
-          <span>酬劳</span>
-          <strong>{shownPlayerPayoutCents ? centsToYuan(shownPlayerPayoutCents) : "-"}</strong>
-        </div>
+      <div className="item-metrics">
+        <span>时长 {shownBillableMinutes ? `${billableHoursLabel(shownBillableMinutes)}h` : "-"}</span>
+        <span>总价 {shownGrossAmountCents ? formatYuan(shownGrossAmountCents) : "-"}</span>
+        <span>酬劳 {shownPlayerPayoutCents ? formatYuan(shownPlayerPayoutCents) : "-"}</span>
       </div>
 
       <div className="toolbar">

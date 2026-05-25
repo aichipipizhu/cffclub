@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import type { ToastApi } from "@/app/_components/feedback";
 import { statusBadge } from "@/lib/clientFormat";
 import { requestJson } from "@/lib/clientHttp";
-import { billableHoursLabel, centsToYuan, displayOrderCode } from "@/lib/domain";
+import { billableHoursLabel, displayOrderCode, formatYuan } from "@/lib/domain";
 import type { DashboardDto, OrderItemDto } from "@/lib/types";
 
 type SortKey = "code" | "customer" | "player" | "startAt" | "amount" | "status" | "payment";
@@ -177,7 +177,7 @@ export function LedgerTable({
               <th>{sortableHeader("customer", "老板")}</th>
               <th>{sortableHeader("player", "陪玩")}</th>
               <th>{sortableHeader("startAt", "时间")}</th>
-              <th>{sortableHeader("amount", "金额")}</th>
+              <th className="amount-heading">{sortableHeader("amount", "金额")}</th>
               <th>{sortableHeader("status", "状态")}</th>
               <th>{sortableHeader("payment", "收款")}</th>
               <th>发薪</th>
@@ -189,22 +189,21 @@ export function LedgerTable({
                 <td>#{displayOrderCode(item.order.code)}</td>
                 <td>{item.order.customer.name}</td>
                 <td>{item.player.displayName}</td>
-                <td>
-                  {formatDateTime(item.startAt)}
-                  <br />
-                  {formatDateTime(item.endAt)}
+                <td className="metric-cell">
+                  <span>{formatDateTime(item.startAt)}</span>
+                  <small>{formatDateTime(item.endAt)}</small>
                 </td>
-                <td>
-                  总价 {centsToYuan(item.grossAmountCents)}
-                  <br />
-                  酬劳 {centsToYuan(item.playerPayoutCents)}
-                  <br />
-                  时长 {item.billableMinutes ? billableHoursLabel(item.billableMinutes) : "-"}
+                <td className="amount-cell">
+                  <strong>{formatYuan(item.grossAmountCents)}</strong>
+                  <span>
+                    酬劳 {formatYuan(item.playerPayoutCents)} · 时长{" "}
+                    {item.billableMinutes ? `${billableHoursLabel(item.billableMinutes)}h` : "-"}
+                  </span>
                 </td>
                 <td>{statusBadge(item.status)}</td>
                 <td>
                   <button
-                    className={`button ${item.order.paymentStatus === "PAID" ? "secondary" : "amber"}`}
+                    className={`button status-toggle ${item.order.paymentStatus === "PAID" ? "paid" : "unpaid"}`}
                     type="button"
                     disabled={busyKey === `payment:${item.order.id}`}
                     onClick={() => void togglePayment(item)}
@@ -214,7 +213,7 @@ export function LedgerTable({
                 </td>
                 <td>
                   <button
-                    className={`button ${item.payrollStatus === "PAID" ? "secondary" : "blue"}`}
+                    className={`button status-toggle ${item.payrollStatus === "PAID" ? "paid" : "pending"}`}
                     type="button"
                     disabled={busyKey === `payroll:${item.id}`}
                     onClick={() => void togglePayroll(item)}

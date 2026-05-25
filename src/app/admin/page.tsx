@@ -1,6 +1,7 @@
 "use client";
 
-import { Download, LogOut, RefreshCw } from "lucide-react";
+import { Banknote, Download, LogOut, RefreshCw, TrendingUp, WalletCards } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { ConfigForms } from "@/app/admin/_components/ConfigForms";
@@ -10,14 +11,30 @@ import { CustomerSummary, PayrollSummary } from "@/app/admin/_components/Summary
 import { ToastViewport, useToast } from "@/app/_components/feedback";
 import { AdminSkeleton } from "@/app/_components/loading";
 import { requestJson } from "@/lib/clientHttp";
-import { centsToYuan } from "@/lib/domain";
+import { formatYuan } from "@/lib/domain";
 import type { DashboardDto, UserDto } from "@/lib/types";
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function Stat({
+  label,
+  value,
+  meta,
+  tone,
+  icon,
+}: {
+  label: string;
+  value: string | number;
+  meta: string;
+  tone: "blue" | "amber" | "purple" | "green";
+  icon: ReactNode;
+}) {
   return (
-    <div className="stat">
-      <span>{label}</span>
+    <div className={`stat stat-${tone}`}>
+      <div className="stat-label">
+        <span>{label}</span>
+        {icon}
+      </div>
       <strong>{value}</strong>
+      <small>{meta}</small>
     </div>
   );
 }
@@ -51,6 +68,10 @@ export default function AdminPage() {
   const toast = useToast();
 
   const players = useMemo(() => dashboard?.users.filter((user) => user.role === "PLAYER") ?? [], [dashboard]);
+  const todayLabel = useMemo(
+    () => new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short" }).format(new Date()),
+    [],
+  );
   const pendingItems = useMemo(
     () => dashboard?.items.filter((item) => item.status === "PENDING_REVIEW" || item.status === "REJECTED") ?? [],
     [dashboard],
@@ -132,7 +153,10 @@ export default function AdminPage() {
     <main className="app-shell admin-shell">
       <header className="topbar">
         <div className="brand">
-          <strong>管理后台</strong>
+          <div className="brand-row">
+            <strong>管理后台</strong>
+            <span className="date-chip">今天 {todayLabel}</span>
+          </div>
           <span>流水、审核、结算与配置</span>
         </div>
         <div className="toolbar">
@@ -156,10 +180,34 @@ export default function AdminPage() {
       <div className="page admin-page">
         <ToastViewport toast={toast} />
         <section className="stats">
-          <Stat label="已审核流水" value={centsToYuan(dashboard.totals.grossAmountCents)} />
-          <Stat label="未收款" value={centsToYuan(dashboard.totals.unpaidAmountCents)} />
-          <Stat label="待发薪" value={centsToYuan(dashboard.totals.unpaidPayrollCents)} />
-          <Stat label="平台净收入" value={centsToYuan(dashboard.totals.platformNetCents)} />
+          <Stat
+            label="已审核流水"
+            value={formatYuan(dashboard.totals.grossAmountCents)}
+            meta={`${dashboard.totals.approvedCount} 单已入账`}
+            tone="blue"
+            icon={<Banknote size={16} aria-hidden="true" />}
+          />
+          <Stat
+            label="未收款"
+            value={formatYuan(dashboard.totals.unpaidAmountCents)}
+            meta="需要跟进回款"
+            tone="amber"
+            icon={<WalletCards size={16} aria-hidden="true" />}
+          />
+          <Stat
+            label="待发薪"
+            value={formatYuan(dashboard.totals.unpaidPayrollCents)}
+            meta="待处理员工结算"
+            tone="purple"
+            icon={<WalletCards size={16} aria-hidden="true" />}
+          />
+          <Stat
+            label="平台净收入"
+            value={formatYuan(dashboard.totals.platformNetCents)}
+            meta="平台抽成扣除归属提成"
+            tone="green"
+            icon={<TrendingUp size={16} aria-hidden="true" />}
+          />
         </section>
 
         <nav className="tabs">

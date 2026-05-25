@@ -1,3 +1,5 @@
+import { CheckCircle, Clock3, PlayCircle, XCircle } from "lucide-react";
+
 import type { ItemStatus } from "@/lib/domain";
 
 export function toInputDateTime(value?: string | Date | null): string {
@@ -17,27 +19,27 @@ export function statusBadge(status: ItemStatus) {
   if (status === "APPROVED") {
     return (
       <span className="badge green">
-        <span className="badge-dot" /> 已入账
+        <CheckCircle size={12} aria-hidden="true" /> 已入账
       </span>
     );
   }
   if (status === "PENDING_REVIEW") {
     return (
       <span className="badge amber">
-        <span className="badge-dot" /> 待审核
+        <Clock3 size={12} aria-hidden="true" /> 待审核
       </span>
     );
   }
   if (status === "REJECTED") {
     return (
       <span className="badge red">
-        <span className="badge-dot" /> 已驳回
+        <XCircle size={12} aria-hidden="true" /> 已驳回
       </span>
     );
   }
   return (
     <span className="badge">
-      <span className="badge-dot" /> 进行中
+      <PlayCircle size={12} aria-hidden="true" /> 进行中
     </span>
   );
 }

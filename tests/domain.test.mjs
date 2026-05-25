@@ -7,6 +7,7 @@ import {
   calculateOrderItemPricing,
   canPlayerEditItem,
   displayOrderCode,
+  formatYuan,
   formatOrderCode,
   normalizeOrderCodeInput,
   resolveCommissionRule,
@@ -107,6 +108,11 @@ test("formats order codes for short display", () => {
   assert.equal(shortOrderCode("202605230001"), "0001");
   assert.equal(shortOrderCode("0001"), "0001");
   assert.equal(displayOrderCode("202605230001"), "单号0001");
+});
+
+test("formats cents as display currency with thousands separators", () => {
+  assert.equal(formatYuan(1230000), "¥12,300");
+  assert.equal(formatYuan(12345), "¥123.45");
 });
 
 test("normalizes short order code input", () => {

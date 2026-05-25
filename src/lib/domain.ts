@@ -214,6 +214,17 @@ export function centsToYuan(cents: number): string {
   return (cents / 100).toFixed(2).replace(/\.?0+$/, "");
 }
 
+export function formatYuan(cents: number): string {
+  const hasFraction = cents % 100 !== 0;
+  return new Intl.NumberFormat("zh-CN", {
+    style: "currency",
+    currency: "CNY",
+    currencyDisplay: "narrowSymbol",
+    minimumFractionDigits: hasFraction ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
 export function shortOrderCode(code: string): string {
   return code.length <= 4 ? code : code.slice(-4);
 }

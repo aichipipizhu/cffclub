@@ -27,4 +27,10 @@ test("global styles define the Gemini-inspired visual system", () => {
   assert.match(css, /\.preview-card\b/);
   assert.match(css, /\.field-error\b/);
   assert.match(css, /\.table-filters\b/);
+  assert.match(css, /font-variant-numeric: tabular-nums/);
+  assert.match(css, /\.amount-cell\b/);
+  assert.match(css, /\.button\.status-toggle\b/);
+  assert.match(css, /prefers-color-scheme: dark/);
+  assert.match(css, /::selection\b/);
+  assert.match(css, /:focus-visible\b/);
 });

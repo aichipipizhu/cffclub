@@ -1,6 +1,8 @@
 "use client";
 
-import { centsToYuan } from "@/lib/domain";
+import { CheckCircle, Clock3 } from "lucide-react";
+
+import { formatYuan } from "@/lib/domain";
 import type { CustomerDto, DashboardDto } from "@/lib/types";
 
 export function PayrollSummary({ dashboard }: { dashboard: DashboardDto }) {
@@ -16,8 +18,8 @@ export function PayrollSummary({ dashboard }: { dashboard: DashboardDto }) {
               <tr>
                 <th>陪玩</th>
                 <th>单数</th>
-                <th>应发</th>
-                <th>未发</th>
+                <th className="amount-heading">应发</th>
+                <th className="amount-heading">未发</th>
               </tr>
             </thead>
             <tbody>
@@ -25,8 +27,8 @@ export function PayrollSummary({ dashboard }: { dashboard: DashboardDto }) {
                 <tr key={row.playerId}>
                   <td>{row.playerName}</td>
                   <td>{row.count}</td>
-                  <td>{centsToYuan(row.amountCents)}</td>
-                  <td>{centsToYuan(row.unpaidCents || 0)}</td>
+                  <td className="amount-cell">{formatYuan(row.amountCents)}</td>
+                  <td className="amount-cell">{formatYuan(row.unpaidCents || 0)}</td>
                 </tr>
               ))}
             </tbody>
@@ -43,7 +45,7 @@ export function PayrollSummary({ dashboard }: { dashboard: DashboardDto }) {
               <tr>
                 <th>归属人</th>
                 <th>单数</th>
-                <th>提成</th>
+                <th className="amount-heading">提成</th>
               </tr>
             </thead>
             <tbody>
@@ -51,7 +53,7 @@ export function PayrollSummary({ dashboard }: { dashboard: DashboardDto }) {
                 <tr key={row.playerId}>
                   <td>{row.playerName}</td>
                   <td>{row.count}</td>
-                  <td>{centsToYuan(row.amountCents)}</td>
+                  <td className="amount-cell">{formatYuan(row.amountCents)}</td>
                 </tr>
               ))}
             </tbody>
@@ -80,8 +82,8 @@ export function CustomerSummary({
             <tr>
               <th>老板</th>
               <th>单数</th>
-              <th>已审核消费</th>
-              <th>未收款</th>
+              <th className="amount-heading">已审核消费</th>
+              <th className="amount-heading">未收款</th>
               <th>档案状态</th>
               <th>归属人</th>
             </tr>
@@ -93,16 +95,16 @@ export function CustomerSummary({
                 <tr key={row.customerId}>
                   <td>{row.customerName}</td>
                   <td>{row.count}</td>
-                  <td>{centsToYuan(row.amountCents)}</td>
-                  <td>{centsToYuan(row.unpaidCents || 0)}</td>
+                  <td className="amount-cell">{formatYuan(row.amountCents)}</td>
+                  <td className="amount-cell">{formatYuan(row.unpaidCents || 0)}</td>
                   <td>
                     {customer?.status === "CONFIRMED" ? (
                       <span className="badge green">
-                        <span className="badge-dot" /> 已确认
+                        <CheckCircle size={12} aria-hidden="true" /> 已确认
                       </span>
                     ) : (
                       <span className="badge amber">
-                        <span className="badge-dot" /> 待确认
+                        <Clock3 size={12} aria-hidden="true" /> 待确认
                       </span>
                     )}
                   </td>

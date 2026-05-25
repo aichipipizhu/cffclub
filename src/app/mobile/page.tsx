@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, RefreshCw } from "lucide-react";
+import { Inbox, LogOut, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { ToastViewport, useToast } from "@/app/_components/feedback";
@@ -134,7 +134,14 @@ export default function MobilePage() {
             ))}
           </nav>
           {filteredItems.length === 0 ? (
-            <div className="empty">暂无报单</div>
+            <div className="empty">
+              <Inbox size={28} aria-hidden="true" />
+              <strong>暂无报单</strong>
+              <span>开局后会出现在这里</span>
+              <button className="button" type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+                立即报备
+              </button>
+            </div>
           ) : (
             filteredItems.map((item) => (
               <ItemCard key={item.id} item={item} onChanged={(updated) => setItems((current) => upsertItem(current, updated))} toast={toast} />
