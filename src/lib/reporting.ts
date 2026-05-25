@@ -4,6 +4,7 @@ import {
   buildWechatReportText,
   calculateOrderItemPricing,
   canPlayerEditItem,
+  normalizeOrderCodeInput,
   resolvePricingRule,
   summarizeApprovedItems,
 } from "@/lib/domain";
@@ -203,10 +204,17 @@ export async function startOrderForPlayer(input: {
 }
 
 export async function joinOrderForPlayer(input: { playerId: string; orderCode: string; startAt?: Date }) {
-  const order = await prisma.order.findUnique({
-    where: { code: input.orderCode },
-    include: { category: true },
-  });
+  const orderCode = normalizeOrderCodeInput(input.orderCode);
+  const order =
+    (await prisma.order.findUnique({
+      where: { code: orderCode },
+      include: { category: true },
+    })) ??
+    (await prisma.order.findFirst({
+      where: { code: { endsWith: orderCode } },
+      orderBy: { createdAt: "desc" },
+      include: { category: true },
+    }));
 
   if (!order) {
     throw new HttpError(404, "单号不存在");

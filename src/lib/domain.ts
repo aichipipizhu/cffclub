@@ -177,6 +177,11 @@ export function displayOrderCode(code: string): string {
   return `单号${shortOrderCode(code)}`;
 }
 
+export function normalizeOrderCodeInput(code: string): string {
+  const cleaned = code.trim().replace(/^#?\s*单号\s*/u, "").replace(/^#\s*/u, "");
+  return /^\d{1,4}$/.test(cleaned) ? cleaned.padStart(4, "0") : cleaned;
+}
+
 export function billableHoursLabel(minutes: number): string {
   return (minutes / 60).toFixed(2).replace(/\.?0+$/, "");
 }

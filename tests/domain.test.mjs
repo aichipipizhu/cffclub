@@ -7,6 +7,7 @@ import {
   calculateOrderItemPricing,
   canPlayerEditItem,
   displayOrderCode,
+  normalizeOrderCodeInput,
   resolvePricingRule,
   shortOrderCode,
   summarizeApprovedItems,
@@ -106,6 +107,13 @@ test("formats order codes for short display", () => {
   assert.equal(shortOrderCode("202605230001"), "0001");
   assert.equal(shortOrderCode("0001"), "0001");
   assert.equal(displayOrderCode("202605230001"), "单号0001");
+});
+
+test("normalizes short order code input", () => {
+  assert.equal(normalizeOrderCodeInput("3"), "0003");
+  assert.equal(normalizeOrderCodeInput("  #单号3  "), "0003");
+  assert.equal(normalizeOrderCodeInput("0003"), "0003");
+  assert.equal(normalizeOrderCodeInput("202605230003"), "202605230003");
 });
 
 test("builds a WeChat-compatible report text from an order item", () => {
