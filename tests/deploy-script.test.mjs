@@ -25,7 +25,41 @@ test("Windows deploy script includes the full production deployment flow", () =>
   }
 });
 
-test("README documents the production one-command deployment script", () => {
+test("Linux deploy script includes the full production deployment flow", () => {
+  const script = readFileSync("scripts/deploy.sh", "utf8");
+
+  for (const required of [
+    "https://github.com/aichipipizhu/cffclub.git",
+    "ensure_command git",
+    "ensure_command node",
+    "ensure_command npm",
+    "git clone",
+    "git pull",
+    "npm ci",
+    "npx prisma migrate deploy",
+    "npm install -g pm2",
+    "ecosystem.config.cjs",
+    "pm2 start ecosystem.config.cjs",
+    "pm2 restart",
+    "pm2 save",
+    "pm2 startup systemd",
+  ]) {
+    assert.match(script, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
+test("README documents Ubuntu production deployment as the primary flow", () => {
+  const readme = readFileSync("README.md", "utf8");
+
+  assert.match(readme, /Ubuntu 服务器一键部署/);
+  assert.match(readme, /scripts\/deploy\.sh/);
+  assert.match(readme, /DATABASE_URL/);
+  assert.match(readme, /AUTH_SECRET/);
+  assert.match(readme, /PM2/);
+  assert.match(readme, /systemd/);
+});
+
+test("README keeps the legacy Windows deployment flow documented", () => {
   const readme = readFileSync("README.md", "utf8");
 
   assert.match(readme, /scripts\\deploy\.ps1/);

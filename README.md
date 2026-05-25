@@ -26,9 +26,42 @@ npm run dev
 - 陪玩：`koko` / `player123`
 - 陪玩：`xinqing` / `player123`
 
-## Windows 服务器一键部署
+## Ubuntu 服务器一键部署
 
-服务器需要先准备好 Git、Node.js 20/22 LTS，以及可连接的 MySQL 数据库。首次部署可以在服务器 PowerShell 中运行：
+服务器需要先准备好 Git、Node.js 20/22 LTS、PM2 可用的 npm 全局安装权限，以及可连接的 MySQL 数据库。首次部署可以在 Ubuntu 服务器中运行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aichipipizhu/cffclub/main/scripts/deploy.sh -o /tmp/deploy.sh
+bash /tmp/deploy.sh \
+  --database-url "mysql://用户名:密码@数据库地址:3306/kabuda" \
+  --auth-secret "替换成至少24位的随机密钥" \
+  --seed
+```
+
+脚本默认会把项目部署到 `/opt/cffclub`，并执行完整生产流程：
+
+```bash
+git clone / git pull
+npm ci
+npx prisma migrate deploy
+npm run build
+PM2 启动或重启 kabuda
+PM2 systemd 开机自启配置
+```
+
+后续更新只需要在服务器运行：
+
+```bash
+bash /opt/cffclub/scripts/deploy.sh
+```
+
+如果不是首次初始化数据库，不要再加 `--seed`。服务器上的 `.env` 不会提交到 Git，必须保留真实的 `DATABASE_URL` 和 `AUTH_SECRET`。
+
+如果当前用户无法执行 `npm install -g pm2` 或配置 systemd 自启，请使用有 sudo 权限的用户运行脚本，或先手动安装 PM2 后加 `--skip-startup` 跳过自启配置。
+
+## Windows 服务器旧版部署
+
+Windows Server 不再是推荐部署环境。旧服务器仍可使用 PowerShell 脚本，服务器需要先准备好 Git、Node.js 20/22 LTS，以及可连接的 MySQL 数据库。首次部署可以在服务器 PowerShell 中运行：
 
 ```powershell
 New-Item C:\deploy -ItemType Directory -Force
