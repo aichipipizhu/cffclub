@@ -3,7 +3,7 @@
 import { Clipboard, LogOut, Play, RefreshCw, Save, Send, SquarePlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { billableHoursLabel, centsToYuan } from "@/lib/domain";
+import { billableHoursLabel, centsToYuan, displayOrderCode } from "@/lib/domain";
 
 type User = {
   id: string;
@@ -122,7 +122,7 @@ function ItemCard({
     <article className="card item-card">
       <div className="item-meta">
         <div>
-          <strong>#{item.order.code}</strong>
+          <strong>#{displayOrderCode(item.order.code)}</strong>
           <div className="muted">
             {item.order.customer.name} / {item.order.category.name}
           </div>

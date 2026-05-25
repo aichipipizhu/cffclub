@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 
-import { centsToYuan, billableHoursLabel } from "@/lib/domain";
+import { centsToYuan, billableHoursLabel, shortOrderCode } from "@/lib/domain";
 import { handleRouteError, parseDateRange, requireAdmin } from "@/lib/http";
 import { getAdminDashboard } from "@/lib/reporting";
 
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     ];
     ledger.addRows(
       dashboard.items.map((item) => ({
-        orderCode: item.order.code,
+        orderCode: shortOrderCode(item.order.code),
         customer: item.order.customer.name,
         category: item.order.category.name,
         player: item.player.displayName,

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { billableHoursLabel, centsToYuan } from "@/lib/domain";
+import { billableHoursLabel, centsToYuan, displayOrderCode } from "@/lib/domain";
 
 type AdminUser = {
   id: string;
@@ -183,7 +183,7 @@ function ReviewControls({
     <div className="card item-card">
       <div className="item-meta">
         <div>
-          <strong>#{item.order.code}</strong>
+          <strong>#{displayOrderCode(item.order.code)}</strong>
           <div className="muted">
             {item.order.customer.name} / {item.order.category.name} / {item.player.displayName}
           </div>
@@ -375,7 +375,7 @@ export default function AdminPage() {
                 <tbody>
                   {dashboard.items.map((item) => (
                     <tr key={item.id}>
-                      <td>#{item.order.code}</td>
+                      <td>#{displayOrderCode(item.order.code)}</td>
                       <td>{item.order.customer.name}</td>
                       <td>{item.player.displayName}</td>
                       <td>

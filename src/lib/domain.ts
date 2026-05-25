@@ -169,6 +169,14 @@ export function centsToYuan(cents: number): string {
   return (cents / 100).toFixed(2).replace(/\.?0+$/, "");
 }
 
+export function shortOrderCode(code: string): string {
+  return code.length <= 4 ? code : code.slice(-4);
+}
+
+export function displayOrderCode(code: string): string {
+  return `单号${shortOrderCode(code)}`;
+}
+
 export function billableHoursLabel(minutes: number): string {
   return (minutes / 60).toFixed(2).replace(/\.?0+$/, "");
 }
@@ -184,7 +192,7 @@ export function formatTimeOfDay(input: string | Date): string {
 
 export function buildWechatReportText(input: WechatReportInput): string {
   return [
-    `单号：${input.orderCode}`,
+    `单号：${shortOrderCode(input.orderCode)}`,
     `老板：${input.customerName}`,
     `类别：${input.categoryName}`,
     `陪玩：${input.playerName}`,

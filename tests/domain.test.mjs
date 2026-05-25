@@ -6,7 +6,9 @@ import {
   calculateBillableMinutes,
   calculateOrderItemPricing,
   canPlayerEditItem,
+  displayOrderCode,
   resolvePricingRule,
+  shortOrderCode,
   summarizeApprovedItems,
 } from "../src/lib/domain.ts";
 
@@ -100,6 +102,12 @@ test("summarizes only approved items for dashboard totals", () => {
   });
 });
 
+test("formats order codes for short display", () => {
+  assert.equal(shortOrderCode("202605230001"), "0001");
+  assert.equal(shortOrderCode("0001"), "0001");
+  assert.equal(displayOrderCode("202605230001"), "单号0001");
+});
+
 test("builds a WeChat-compatible report text from an order item", () => {
   const text = buildWechatReportText({
     orderCode: "202605230001",
@@ -120,7 +128,7 @@ test("builds a WeChat-compatible report text from an order item", () => {
   assert.equal(
     text,
     [
-      "单号：202605230001",
+      "单号：0001",
       "老板：陈发发",
       "类别：lol",
       "陪玩：koko",
